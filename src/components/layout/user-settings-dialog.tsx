@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { HardDrive, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useMe } from "@/components/auth/auth-gate";
 import { api, ApiError } from "@/lib/api-client";
@@ -28,13 +29,30 @@ export function UserSettingsDialog({ open, onOpenChange }: Props) {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
 
+  // Google Drive
+  const [driveConnected, setDriveConnected] = useState<boolean | null>(null);
+  const [driveLoading, setDriveLoading] = useState(false);
+
+  const fetchDriveStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/google/status");
+      if (res.ok) {
+        const data = await res.json();
+        setDriveConnected(data.connected);
+      }
+    } catch {
+      setDriveConnected(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (open) {
       setName(me.name);
       setPassword("");
       setPasswordConfirm("");
+      fetchDriveStatus();
     }
-  }, [open, me.name]);
+  }, [open, me.name, fetchDriveStatus]);
 
   const handleSaveName = async () => {
     if (!name.trim() || name === me.name) return;
@@ -42,19 +60,19 @@ export function UserSettingsDialog({ open, onOpenChange }: Props) {
     try {
       await api.put(`/users/${me.id}`, { name: name.trim() });
       await refresh();
-      toast.success("表示名を変更しました");
+      toast.success("Display name updated");
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.body.error : "変更に失敗しました");
+      toast.error(e instanceof ApiError ? e.body.error : "Failed to update");
     } finally { setNameSaving(false); }
   };
 
   const handleChangePassword = async () => {
     if (password.length < 4) {
-      toast.error("パスワードは4文字以上にしてください");
+      toast.error("Password must be at least 4 characters");
       return;
     }
     if (password !== passwordConfirm) {
-      toast.error("パスワードが一致しません");
+      toast.error("Passwords do not match");
       return;
     }
     setPasswordSaving(true);
@@ -62,32 +80,46 @@ export function UserSettingsDialog({ open, onOpenChange }: Props) {
       await api.post(`/users/${me.id}/password`, { password });
       setPassword("");
       setPasswordConfirm("");
-      toast.success("パスワードを変更しました");
+      toast.success("Password changed");
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.body.error : "変更に失敗しました");
+      toast.error(e instanceof ApiError ? e.body.error : "Failed to update");
     } finally { setPasswordSaving(false); }
+  };
+
+  const handleDisconnectDrive = async () => {
+    setDriveLoading(true);
+    try {
+      await fetch("/api/auth/google/disconnect", { method: "POST" });
+      setDriveConnected(false);
+      toast.success("Google Drive disconnected");
+    } catch {
+      toast.error("Failed to disconnect");
+    } finally {
+      setDriveLoading(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>ユーザー設定</DialogTitle>
+          <DialogTitle>User Settings</DialogTitle>
+          <DialogDescription className="sr-only">Manage your account settings</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* ── Profile ── */}
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">プロフィール</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Profile</h3>
             <div className="space-y-1">
-              <Label>メールアドレス</Label>
+              <Label>Email</Label>
               <p className="text-sm text-muted-foreground">{me.email}</p>
             </div>
           </section>
 
           {/* ── Display Name ── */}
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">表示名</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Display Name</h3>
             <div className="flex gap-2">
               <Input
                 value={name}
@@ -98,16 +130,16 @@ export function UserSettingsDialog({ open, onOpenChange }: Props) {
                 onClick={handleSaveName}
                 disabled={nameSaving || !name.trim() || name === me.name}
               >
-                {nameSaving ? "保存中..." : "保存"}
+                {nameSaving ? "Saving..." : "Save"}
               </Button>
             </div>
           </section>
 
           {/* ── Password ── */}
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">パスワード変更</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Change Password</h3>
             <div className="space-y-2">
-              <Label htmlFor="settings-pw">新しいパスワード</Label>
+              <Label htmlFor="settings-pw">New Password</Label>
               <Input
                 id="settings-pw"
                 type="password"
@@ -117,7 +149,7 @@ export function UserSettingsDialog({ open, onOpenChange }: Props) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="settings-pw-confirm">確認</Label>
+              <Label htmlFor="settings-pw-confirm">Confirm</Label>
               <Input
                 id="settings-pw-confirm"
                 type="password"
@@ -131,8 +163,48 @@ export function UserSettingsDialog({ open, onOpenChange }: Props) {
               onClick={handleChangePassword}
               disabled={passwordSaving || password.length < 4}
             >
-              {passwordSaving ? "変更中..." : "パスワードを変更"}
+              {passwordSaving ? "Changing..." : "Change Password"}
             </Button>
+          </section>
+
+          {/* ── Google Drive ── */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Google Drive</h3>
+            {driveConnected === null ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Checking...
+              </div>
+            ) : driveConnected ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm">
+                  <HardDrive className="size-4 text-green-400" />
+                  Connected
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={handleDisconnectDrive}
+                  disabled={driveLoading}
+                >
+                  {driveLoading ? <Loader2 className="size-4 animate-spin" /> : "Disconnect"}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <HardDrive className="size-4" />
+                  Not connected
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => { window.location.href = "/api/auth/google"; }}
+                >
+                  Connect
+                </Button>
+              </div>
+            )}
           </section>
         </div>
       </DialogContent>

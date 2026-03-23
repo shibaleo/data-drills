@@ -28,7 +28,7 @@ export function LoginPage({ onPasswordLogin, error: externalError }: LoginPagePr
         redirectUrlComplete: "/",
       });
     } catch {
-      setError("Google ログインに失敗しました");
+      setError("Google login failed");
     }
   }
 
@@ -44,12 +44,12 @@ export function LoginPage({ onPasswordLogin, error: externalError }: LoginPagePr
       });
       if (!res.ok) {
         const body = await res.json();
-        setError(body.error ?? "ログインに失敗しました");
+        setError(body.error ?? "Login failed");
         return;
       }
       onPasswordLogin();
     } catch {
-      setError("ログインに失敗しました");
+      setError("Login failed");
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ export function LoginPage({ onPasswordLogin, error: externalError }: LoginPagePr
       <div className="w-full max-w-sm space-y-6 px-4">
         <div className="text-center space-y-1">
           <h1 className="text-2xl font-semibold text-primary">{SITE_NAME}</h1>
-          <p className="text-sm text-muted-foreground">ログインしてください</p>
+          <p className="text-sm text-muted-foreground">Sign in to continue</p>
         </div>
 
         {displayError && (
@@ -94,7 +94,7 @@ export function LoginPage({ onPasswordLogin, error: externalError }: LoginPagePr
               fill="#EA4335"
             />
           </svg>
-          Google でログイン
+          Sign in with Google
         </Button>
 
         <div className="relative">
@@ -102,13 +102,13 @@ export function LoginPage({ onPasswordLogin, error: externalError }: LoginPagePr
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">または</span>
+            <span className="bg-background px-2 text-muted-foreground">or</span>
           </div>
         </div>
 
         <form onSubmit={handlePasswordLogin} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">メールアドレス</Label>
+            <Label htmlFor="email">Email</Label>
             <Input
               id="email"
               type="email"
@@ -119,7 +119,7 @@ export function LoginPage({ onPasswordLogin, error: externalError }: LoginPagePr
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">パスワード</Label>
+            <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
@@ -130,7 +130,7 @@ export function LoginPage({ onPasswordLogin, error: externalError }: LoginPagePr
             />
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "ログイン中..." : "ログイン"}
+            {loading ? "Signing in..." : "Sign in"}
           </Button>
         </form>
       </div>

@@ -85,35 +85,33 @@ export const topic = pgTable("topic", {
 ]);
 
 // =============================================================================
-// 5. Tag
+// 5. Tag (project-independent)
 // =============================================================================
 
 export const tag = pgTable("tag", {
   id: id(),
   code: code(),
   name: name(),
-  projectId: uuid("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
   color: text("color"),
   sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps(),
 }, (t) => [
-  uniqueIndex("tag_project_code_key").on(t.projectId, t.code),
+  uniqueIndex("tag_code_key").on(t.code),
 ]);
 
 // =============================================================================
-// 6. ReviewType
+// 6. AnswerStatus (project-independent)
 // =============================================================================
 
-export const reviewType = pgTable("review_type", {
+export const answerStatus = pgTable("answer_status", {
   id: id(),
   code: code(),
   name: name(),
-  projectId: uuid("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
   color: text("color"),
   sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps(),
 }, (t) => [
-  uniqueIndex("review_type_project_code_key").on(t.projectId, t.code),
+  uniqueIndex("answer_status_code_key").on(t.code),
 ]);
 
 // =============================================================================
@@ -131,7 +129,7 @@ export const problem = pgTable("problem", {
   checkpoint: text("checkpoint"),
   ...timestamps(),
 }, (t) => [
-  uniqueIndex("problem_project_code_key").on(t.projectId, t.code),
+  uniqueIndex("problem_project_code_key").on(t.projectId, t.code, t.subjectId, t.levelId),
 ]);
 
 // =============================================================================
@@ -166,7 +164,7 @@ export const answer = pgTable("answer", {
   problemId: uuid("problem_id").notNull().references(() => problem.id, { onDelete: "cascade" }),
   date: date("date").notNull(),
   duration: integer("duration"),
-  status: text("status").notNull(), // Yet | Repeat | Check | Recall | Done
+  answerStatusId: uuid("answer_status_id").references(() => answerStatus.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -177,10 +175,20 @@ export const answer = pgTable("answer", {
 export const review = pgTable("review", {
   id: id(),
   answerId: uuid("answer_id").notNull().references(() => answer.id, { onDelete: "cascade" }),
-  reviewTypeId: uuid("review_type_id").notNull().references(() => reviewType.id, { onDelete: "cascade" }),
   content: text("content"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// =============================================================================
+// 11b. ReviewTag (M:N)
+// =============================================================================
+
+export const reviewTag = pgTable("review_tag", {
+  reviewId: uuid("review_id").notNull().references(() => review.id, { onDelete: "cascade" }),
+  tagId: uuid("tag_id").notNull().references(() => tag.id, { onDelete: "cascade" }),
+}, (t) => [
+  primaryKey({ columns: [t.reviewId, t.tagId] }),
+]);
 
 // =============================================================================
 // 12. Flashcard

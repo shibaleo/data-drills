@@ -41,7 +41,7 @@ export default function ApiKeysPage() {
       const data = await fetchAllPages<ApiKeyRow>("/api-keys");
       setItems(data);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.body.error : "API キーの取得に失敗しました");
+      toast.error(e instanceof ApiError ? e.body.error : "Failed to fetch API keys");
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ export default function ApiKeysPage() {
       setCreatedKey(res.data.raw_key);
       fetchItems();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.body.error : "作成に失敗しました");
+      toast.error(e instanceof ApiError ? e.body.error : "Failed to create");
     } finally {
       setSaving(false);
     }
@@ -66,10 +66,10 @@ export default function ApiKeysPage() {
   const handleDeactivate = async (id: string) => {
     try {
       await api.patch("/api-keys/" + id, { is_active: false });
-      toast.success("API キーを無効化しました");
+      toast.success("API key deactivated");
       fetchItems();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.body.error : "無効化に失敗しました");
+      toast.error(e instanceof ApiError ? e.body.error : "Failed to deactivate");
     }
   };
 
@@ -85,20 +85,20 @@ export default function ApiKeysPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <span className="text-muted-foreground"><Key className="size-5" /></span>
-          <h2 className="text-xl font-semibold">API キー</h2>
+          <h2 className="text-xl font-semibold">API Keys</h2>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={fetchItems}><RefreshCw className="h-4 w-4" /></Button>
           <Button size="sm" onClick={() => { setNewKeyName(""); setCreatedKey(null); setCreateOpen(true); }}>
-            <Plus className="h-4 w-4 mr-1" />新規作成
+            <Plus className="h-4 w-4 mr-1" />New
           </Button>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">読み込み中...</div>
+        <div className="text-center py-12 text-muted-foreground">Loading...</div>
       ) : items.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">API キーがありません</div>
+        <div className="text-center py-12 text-muted-foreground">No API keys</div>
       ) : (
         <div className="border border-border rounded-md overflow-hidden">
           <table className="w-full text-sm">
@@ -111,12 +111,12 @@ export default function ApiKeysPage() {
                         <span className="font-mono text-xs text-muted-foreground">{item.key_prefix}...</span>
                         <span>{item.name}</span>
                         {!item.is_active && (
-                          <Badge className="bg-red-900/30 text-red-400 border-red-800/50 text-xs py-0">無効</Badge>
+                          <Badge className="bg-red-900/30 text-red-400 border-red-800/50 text-xs py-0">Disabled</Badge>
                         )}
                       </div>
                       {item.is_active && (
                         <Button variant="outline" size="sm" className="text-destructive" onClick={() => handleDeactivate(item.id)}>
-                          無効化
+                          Deactivate
                         </Button>
                       )}
                     </div>
@@ -131,14 +131,14 @@ export default function ApiKeysPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>API キーの新規作成</DialogTitle>
-            <DialogDescription>新しい API キーを作成します。</DialogDescription>
+            <DialogTitle>New API Key</DialogTitle>
+            <DialogDescription>Create a new API key.</DialogDescription>
           </DialogHeader>
 
           {createdKey ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                API キーが作成されました。このキーは一度しか表示されません。必ずコピーしてください。
+                Your API key has been created. This key will only be shown once. Make sure to copy it.
               </p>
               <div className="flex items-center gap-2">
                 <Input value={createdKey} readOnly className="font-mono text-xs" />
@@ -150,19 +150,19 @@ export default function ApiKeysPage() {
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>キー名</Label>
-                <Input value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} placeholder="例: CLI用" />
+                <Label>Key Name</Label>
+                <Input value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} placeholder="e.g. CLI" />
               </div>
             </div>
           )}
 
           <DialogFooter>
             {createdKey ? (
-              <Button onClick={() => setCreateOpen(false)}>閉じる</Button>
+              <Button onClick={() => setCreateOpen(false)}>Close</Button>
             ) : (
               <>
-                <Button variant="outline" onClick={() => setCreateOpen(false)}>キャンセル</Button>
-                <Button onClick={handleCreate} disabled={saving}>{saving ? "作成中..." : "作成"}</Button>
+                <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+                <Button onClick={handleCreate} disabled={saving}>{saving ? "Creating..." : "Create"}</Button>
               </>
             )}
           </DialogFooter>

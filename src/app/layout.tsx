@@ -4,8 +4,8 @@ import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "data-drills",
-  description: "学習記録・問題演習管理",
+  title: "Drills",
+  description: "Learning records & drill management",
 };
 
 export default function RootLayout({

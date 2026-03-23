@@ -34,6 +34,8 @@ export interface MasterPageConfig {
   entityName: string;
   hasColor?: boolean;
   icon?: ReactNode;
+  /** Extra fields to include in the POST body when creating */
+  extraCreatePayload?: Record<string, unknown>;
 }
 
 const COLOR_PRESETS = [
@@ -43,7 +45,7 @@ const COLOR_PRESETS = [
 
 // ── Item Dialog ──
 
-function MasterItemDialog({
+export function MasterItemDialog({
   open,
   onOpenChange,
   item,
@@ -61,6 +63,7 @@ function MasterItemDialog({
   const isCreate = item === null;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [color, setColor] = useState<string | null>(null);
   const [hexInput, setHexInput] = useState("");
@@ -68,11 +71,13 @@ function MasterItemDialog({
   useEffect(() => {
     if (!open) { setError(null); return; }
     if (item) {
+      setCode(item.code);
       setName(item.name);
       const c = (item.color as string | null) ?? null;
       setColor(c);
       setHexInput(c ?? "");
     } else {
+      setCode("");
       setName("");
       setColor(null);
       setHexInput("");
@@ -81,20 +86,19 @@ function MasterItemDialog({
 
   const handleSubmit = async () => {
     setError(null);
-    if (!name.trim()) { setError("名前は必須です"); return; }
+    if (!name.trim()) { setError("Name is required"); return; }
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = { name: name.trim() };
+      const payload: Record<string, unknown> = { code: code.trim() || randomCode(), name: name.trim() };
       if (config.hasColor) payload.color = color;
       if (isCreate) {
-        payload.code = randomCode();
-        await api.post(config.endpoint, payload);
+        await api.post(config.endpoint, { ...payload, ...config.extraCreatePayload });
       } else {
         await api.put(`${config.endpoint}/${item.id}`, payload);
       }
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "保存に失敗しました");
+      setError(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -104,19 +108,23 @@ function MasterItemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{isCreate ? `${config.entityName}の新規作成` : item.name}</DialogTitle>
-          {!isCreate && <DialogDescription><span className="font-mono">{item.code}</span></DialogDescription>}
+          <DialogTitle>{isCreate ? `New ${config.entityName}` : `Edit ${config.entityName}`}</DialogTitle>
+          <DialogDescription className="sr-only">{isCreate ? `Create a new ${config.entityName}` : `Edit ${config.entityName}`}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>名前</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例: 名前" />
+            <Label>Code</Label>
+            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Auto-generated if empty" className="font-mono" />
+          </div>
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Name" />
           </div>
 
           {config.hasColor && (
             <div className="space-y-2">
-              <Label>色</Label>
+              <Label>Color</Label>
               <div className="flex flex-wrap gap-1.5">
                 {COLOR_PRESETS.map((preset) => (
                   <button
@@ -135,7 +143,7 @@ function MasterItemDialog({
                     color === null ? "border-foreground" : "border-dashed border-muted-foreground/50 hover:border-muted-foreground"
                   }`}
                   onClick={() => { setColor(null); setHexInput(""); }}
-                  title="色を解除"
+                  title="Clear color"
                 >
                   ×
                 </button>
@@ -159,11 +167,11 @@ function MasterItemDialog({
         <DialogFooter>
           {!isCreate && (
             <Button variant="outline" size="sm" className="text-destructive hover:text-destructive mr-auto" onClick={onDeleted}>
-              <Trash2 className="h-3.5 w-3.5 mr-1" />削除
+              <Trash2 className="h-3.5 w-3.5 mr-1" />Delete
             </Button>
           )}
-          {isCreate && <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>キャンセル</Button>}
-          <Button onClick={handleSubmit} disabled={saving}>{saving ? "保存中..." : isCreate ? "作成" : "更新"}</Button>
+          {isCreate && <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>}
+          <Button onClick={handleSubmit} disabled={saving}>{saving ? "Saving..." : isCreate ? "Create" : "Update"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -185,7 +193,7 @@ export function MasterPage({ config }: { config: MasterPageConfig }) {
       const data = await fetchAllPages<MasterRow>(config.endpoint);
       setItems(data);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.body.error : `${config.entityName}の取得に失敗しました`);
+      toast.error(e instanceof ApiError ? e.body.error : `Failed to fetch ${config.entityName}`);
     } finally {
       setLoading(false);
     }
@@ -200,17 +208,17 @@ export function MasterPage({ config }: { config: MasterPageConfig }) {
     if (!confirmDelete) return;
     try {
       await api.delete(`${config.endpoint}/${confirmDelete.id}`);
-      toast.success(`${config.entityName}を削除しました`);
+      toast.success(`${config.entityName} deleted`);
       setConfirmDelete(null);
       setDialogOpen(false);
       fetchItems();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.body.error : "削除に失敗しました");
+      toast.error(e instanceof ApiError ? e.body.error : "Failed to delete");
     }
   };
 
   const handleSaved = () => {
-    toast.success(dialogItem ? `${config.entityName}を更新しました` : `${config.entityName}を作成しました`);
+    toast.success(dialogItem ? `${config.entityName} updated` : `${config.entityName} created`);
     setDialogOpen(false);
     fetchItems();
   };
@@ -224,14 +232,14 @@ export function MasterPage({ config }: { config: MasterPageConfig }) {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={fetchItems}><RefreshCw className="h-4 w-4" /></Button>
-          <Button size="sm" onClick={handleCreate}><Plus className="h-4 w-4 mr-1" />新規作成</Button>
+          <Button size="sm" onClick={handleCreate}><Plus className="h-4 w-4 mr-1" />New</Button>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">読み込み中...</div>
+        <div className="text-center py-12 text-muted-foreground">Loading...</div>
       ) : items.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">{config.entityName}がありません</div>
+        <div className="text-center py-12 text-muted-foreground">No {config.entityName} found</div>
       ) : (
         <div className="border border-border rounded-md overflow-hidden">
           <table className="w-full text-sm">
@@ -277,14 +285,14 @@ export function MasterPage({ config }: { config: MasterPageConfig }) {
       <Dialog open={confirmDelete !== null} onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>削除の確認</DialogTitle>
+            <DialogTitle>Confirm Delete</DialogTitle>
             <DialogDescription>
-              「{confirmDelete?.name}」を削除しますか？この操作は元に戻せません。
+              Are you sure you want to delete &quot;{confirmDelete?.name}&quot;? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(null)}>キャンセル</Button>
-            <Button variant="destructive" onClick={executeDelete}>削除</Button>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={executeDelete}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

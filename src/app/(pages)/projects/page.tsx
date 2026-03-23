@@ -7,9 +7,9 @@ export default function ProjectsPage() {
   return (
     <MasterPage
       config={{
-        title: "プロジェクト",
+        title: "Projects",
         endpoint: "/projects",
-        entityName: "プロジェクト",
+        entityName: "Project",
         icon: <FolderKanban className="size-5" />,
       }}
     />

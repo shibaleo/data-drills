@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Bookmark, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,56 +24,76 @@ import {
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { ProjectSelector } from "@/components/shared/project-selector";
-import { ColorBadge } from "@/components/shared/color-badge";
 import { randomCode } from "@/lib/utils";
+import {
+  FlashcardCard,
+  type FlashcardWithReviews,
+  type FlashcardRow,
+  type FlashcardReviewRow,
+} from "@/components/flashcard-card";
 
-interface Flashcard {
+interface TopicItem {
   id: string;
-  code: string;
-  project_id: string;
-  topic_id: string | null;
-  front: string;
-  back: string;
-  created_at: string;
-}
-
-interface MasterItem {
-  id: string;
-  code: string;
   name: string;
-  color: string | null;
+  color?: string | null;
 }
 
 export default function FlashcardsPage() {
   const { currentProject } = useProject();
-  const [cards, setCards] = useState<Flashcard[]>([]);
-  const [topics, setTopics] = useState<MasterItem[]>([]);
+  const [flashcardsWithReviews, setFlashcardsWithReviews] = useState<FlashcardWithReviews[]>([]);
+  const [topics, setTopics] = useState<TopicItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Dialog
+  // Edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editItem, setEditItem] = useState<Flashcard | null>(null);
+  const [editItem, setEditItem] = useState<FlashcardRow | null>(null);
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
   const [topicId, setTopicId] = useState("__none__");
   const [saving, setSaving] = useState(false);
 
   // Study mode
-  const [studyIndex, setStudyIndex] = useState<number | null>(null);
+  const [studyMode, setStudyMode] = useState(false);
+  const [studyIndex, setStudyIndex] = useState(0);
   const [showBack, setShowBack] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const [cs, ts] = await Promise.all([
-        fetchAllPages<Flashcard>("/flashcards", { project_id: currentProject.id }),
-        fetchAllPages<MasterItem>(`/projects/${currentProject.id}/topics`),
+      const [cards, reviews, tops] = await Promise.all([
+        fetchAllPages<FlashcardRow>("/flashcards", { project_id: currentProject.id }),
+        fetchAllPages<FlashcardReviewRow>("/flashcard-reviews"),
+        fetchAllPages<TopicItem>(`/projects/${currentProject.id}/topics`),
       ]);
-      setCards(cs);
-      setTopics(ts);
+
+      // Group reviews by flashcardId
+      const reviewMap = new Map<string, FlashcardReviewRow[]>();
+      for (const r of reviews) {
+        const list = reviewMap.get(r.flashcardId) ?? [];
+        list.push(r);
+        reviewMap.set(r.flashcardId, list);
+      }
+
+      const combined: FlashcardWithReviews[] = cards.map((fc) => ({
+        ...fc,
+        reviews: reviewMap.get(fc.id) ?? [],
+      }));
+
+      // Sort by most recent review date (desc), cards with no reviews last
+      combined.sort((a, b) => {
+        const aMax = a.reviews.reduce((m, x) => (x.reviewedAt > m ? x.reviewedAt : m), "");
+        const bMax = b.reviews.reduce((m, x) => (x.reviewedAt > m ? x.reviewedAt : m), "");
+        if (!aMax && !bMax) return 0;
+        if (!aMax) return 1;
+        if (!bMax) return -1;
+        return bMax.localeCompare(aMax);
+      });
+
+      setFlashcardsWithReviews(combined);
+      setTopics(tops);
     } catch {
-      toast.error("データの取得に失敗しました");
+      toast.error("Failed to fetch data");
     } finally {
       setLoading(false);
     }
@@ -89,17 +109,17 @@ export default function FlashcardsPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (c: Flashcard) => {
-    setEditItem(c);
-    setFront(c.front);
-    setBack(c.back);
-    setTopicId(c.topic_id ?? "__none__");
+  const openEdit = (fc: FlashcardRow) => {
+    setEditItem(fc);
+    setFront(fc.front);
+    setBack(fc.back);
+    setTopicId(fc.topicId ?? "__none__");
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     if (!front.trim() || !back.trim()) {
-      toast.error("表面と裏面は必須です");
+      toast.error("Front and back are required");
       return;
     }
     setSaving(true);
@@ -111,17 +131,17 @@ export default function FlashcardsPage() {
       };
       if (editItem) {
         await api.put(`/flashcards/${editItem.id}`, payload);
-        toast.success("フラッシュカードを更新しました");
+        toast.success("更新しました");
       } else {
         payload.project_id = currentProject!.id;
         payload.code = randomCode();
         await api.post("/flashcards", payload);
-        toast.success("フラッシュカードを作成しました");
+        toast.success("作成しました");
       }
       setDialogOpen(false);
       fetchData();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "保存に失敗しました");
+      toast.error(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -131,7 +151,7 @@ export default function FlashcardsPage() {
     if (!editItem) return;
     try {
       await api.delete(`/flashcards/${editItem.id}`);
-      toast.success("フラッシュカードを削除しました");
+      toast.success("削除しました");
       setDialogOpen(false);
       fetchData();
     } catch (e) {
@@ -139,15 +159,28 @@ export default function FlashcardsPage() {
     }
   };
 
-  const startStudy = () => {
-    if (cards.length === 0) return;
-    setStudyIndex(0);
-    setShowBack(false);
+  const handleAddReview = (fc: FlashcardWithReviews) => {
+    const idx = flashcardsWithReviews.findIndex((f) => f.id === fc.id);
+    if (idx >= 0) {
+      setStudyIndex(idx);
+      setShowBack(false);
+      setStudyMode(true);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    try {
+      await api.delete(`/flashcard-reviews/${reviewId}`);
+      toast.success("削除しました");
+      fetchData();
+    } catch {
+      toast.error("削除に失敗しました");
+    }
   };
 
   const recordReview = async (quality: number) => {
-    if (studyIndex === null) return;
-    const card = cards[studyIndex];
+    const card = flashcardsWithReviews[studyIndex];
+    if (!card) return;
     try {
       await api.post(`/flashcards/${card.id}/reviews`, {
         quality,
@@ -155,30 +188,38 @@ export default function FlashcardsPage() {
       });
     } catch { /* ignore */ }
 
-    if (studyIndex < cards.length - 1) {
+    if (studyIndex < flashcardsWithReviews.length - 1) {
       setStudyIndex(studyIndex + 1);
       setShowBack(false);
     } else {
-      setStudyIndex(null);
-      toast.success("学習完了!");
+      setStudyMode(false);
+      toast.success("Study complete!");
+      fetchData();
     }
+  };
+
+  const startStudy = () => {
+    if (flashcardsWithReviews.length === 0) return;
+    setStudyIndex(0);
+    setShowBack(false);
+    setStudyMode(true);
   };
 
   if (!currentProject) {
     return (
       <div className="p-4 md:p-6">
-        <div className="text-center py-12 text-muted-foreground">プロジェクトを選択してください</div>
+        <div className="text-center py-12 text-muted-foreground">Please select a project</div>
       </div>
     );
   }
 
   // Study mode UI
-  if (studyIndex !== null && cards[studyIndex]) {
-    const card = cards[studyIndex];
+  if (studyMode && flashcardsWithReviews[studyIndex]) {
+    const card = flashcardsWithReviews[studyIndex];
     return (
       <div className="p-4 md:p-6 flex flex-col items-center gap-6">
         <div className="text-sm text-muted-foreground">
-          {studyIndex + 1} / {cards.length}
+          {studyIndex + 1} / {flashcardsWithReviews.length}
         </div>
         <div className="w-full max-w-lg border border-border rounded-lg p-6 min-h-[200px] flex flex-col justify-center">
           <div className="text-center text-lg mb-4">{card.front}</div>
@@ -189,7 +230,7 @@ export default function FlashcardsPage() {
           )}
         </div>
         {!showBack ? (
-          <Button onClick={() => setShowBack(true)}>答えを表示</Button>
+          <Button onClick={() => setShowBack(true)}>Show Answer</Button>
         ) : (
           <div className="flex gap-2">
             {[1, 2, 3, 4, 5].map((q) => (
@@ -199,7 +240,7 @@ export default function FlashcardsPage() {
             ))}
           </div>
         )}
-        <Button variant="outline" onClick={() => setStudyIndex(null)}>終了</Button>
+        <Button variant="outline" onClick={() => { setStudyMode(false); fetchData(); }}>Exit</Button>
       </div>
     );
   }
@@ -209,41 +250,34 @@ export default function FlashcardsPage() {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <span className="text-muted-foreground"><Bookmark className="size-5" /></span>
-          <h2 className="text-xl font-semibold">フラッシュカード</h2>
+          <h2 className="text-xl font-semibold">Flashcards</h2>
         </div>
         <div className="flex gap-2">
           <ProjectSelector />
           <Button variant="outline" size="sm" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
-          {cards.length > 0 && (
-            <Button variant="secondary" size="sm" onClick={startStudy}>学習開始</Button>
+          {flashcardsWithReviews.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={startStudy}>Study</Button>
           )}
-          <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4 mr-1" />新規作成</Button>
+          <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4 mr-1" />New</Button>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">読み込み中...</div>
-      ) : cards.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">フラッシュカードがありません</div>
+        <div className="text-center py-12 text-muted-foreground">Loading...</div>
+      ) : flashcardsWithReviews.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">No flashcards found</div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((c) => {
-            const top = topics.find((t) => t.id === c.topic_id);
-            return (
-              <div
-                key={c.id}
-                className="border border-border rounded-lg p-4 cursor-pointer transition-colors hover:bg-accent/20"
-                onClick={() => openEdit(c)}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-mono text-xs text-muted-foreground">{c.code}</span>
-                  {top?.color && <ColorBadge color={top.color}>{top.name}</ColorBadge>}
-                </div>
-                <div className="text-sm font-medium line-clamp-2">{c.front}</div>
-                <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{c.back}</div>
-              </div>
-            );
-          })}
+        <div className="space-y-4">
+          {flashcardsWithReviews.map((fc) => (
+            <FlashcardCard
+              key={fc.id}
+              flashcard={fc}
+              topics={topics}
+              onEdit={openEdit}
+              onAddReview={handleAddReview}
+              onDeleteReview={handleDeleteReview}
+            />
+          ))}
         </div>
       )}
 
@@ -251,27 +285,28 @@ export default function FlashcardsPage() {
         <Plus className="h-6 w-6" />
       </Button>
 
+      {/* Edit / Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editItem ? "フラッシュカードの編集" : "フラッシュカードの新規作成"}</DialogTitle>
-            {editItem && <DialogDescription><span className="font-mono">{editItem.code}</span></DialogDescription>}
+            <DialogTitle>{editItem ? "Flashcardを編集" : "新規Flashcard"}</DialogTitle>
+            <DialogDescription className="sr-only">{editItem ? "Edit flashcard" : "Create a new flashcard"}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>表面（質問）</Label>
-              <Input value={front} onChange={(e) => setFront(e.target.value)} placeholder="質問を入力" />
+              <Label>Front (Question)</Label>
+              <Textarea value={front} onChange={(e) => setFront(e.target.value)} placeholder="Enter question" rows={3} />
             </div>
             <div className="space-y-2">
-              <Label>裏面（答え）</Label>
-              <Input value={back} onChange={(e) => setBack(e.target.value)} placeholder="答えを入力" />
+              <Label>Back (Answer)</Label>
+              <Textarea value={back} onChange={(e) => setBack(e.target.value)} placeholder="Enter answer" rows={3} />
             </div>
             <div className="space-y-2">
-              <Label>トピック</Label>
+              <Label>Topic</Label>
               <Select value={topicId} onValueChange={setTopicId}>
-                <SelectTrigger><SelectValue placeholder="なし" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">なし</SelectItem>
+                  <SelectItem value="__none__">None</SelectItem>
                   {topics.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>

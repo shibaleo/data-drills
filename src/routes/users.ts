@@ -123,6 +123,24 @@ app.post("/:id/password", async (c) => {
 });
 
 /**
+ * POST /api/v1/users/:id/activate
+ * Reactivate a user.
+ */
+app.post("/:id/activate", async (c) => {
+  const userId = c.req.param("id");
+  const [updated] = await db
+    .update(user)
+    .set({ isActive: true, updatedAt: new Date() })
+    .where(eq(user.id, userId))
+    .returning({ id: user.id });
+
+  if (!updated) {
+    return c.json({ error: "User not found" }, 404);
+  }
+  return c.json({ message: "User activated" });
+});
+
+/**
  * DELETE /api/v1/users/:id
  * Deactivate a user (soft delete).
  */

@@ -16,13 +16,15 @@ app.get("/", async (c) => {
 
 app.post("/", async (c) => {
   const body = await c.req.json();
-  const [row] = await db.insert(flashcard).values({
-    code: body.code || randomCode(),
-    projectId: body.project_id,
-    topicId: body.topic_id ?? null,
-    front: body.front,
-    back: body.back,
-  }).returning();
+  const values = {
+    code: (body.code || randomCode()) as string,
+    projectId: body.project_id as string,
+    topicId: (body.topic_id ?? null) as string | null,
+    front: body.front as string,
+    back: body.back as string,
+    ...(body.id ? { id: body.id as string } : {}),
+  };
+  const [row] = await db.insert(flashcard).values(values).returning();
   return c.json({ data: row }, 201);
 });
 
@@ -91,12 +93,14 @@ app.get("/:id/reviews", async (c) => {
 
 app.post("/:id/reviews", async (c) => {
   const body = await c.req.json();
-  const [row] = await db.insert(flashcardReview).values({
+  const reviewValues = {
     flashcardId: c.req.param("id"),
-    quality: body.quality,
-    reviewedAt: body.reviewed_at || new Date().toISOString(),
-    nextReviewAt: body.next_review_at ?? null,
-  }).returning();
+    quality: body.quality as number,
+    reviewedAt: new Date(body.reviewed_at || new Date().toISOString()),
+    nextReviewAt: body.next_review_at ? new Date(body.next_review_at) : null,
+    ...(body.id ? { id: body.id as string } : {}),
+  };
+  const [row] = await db.insert(flashcardReview).values(reviewValues).returning();
   return c.json({ data: row }, 201);
 });
 

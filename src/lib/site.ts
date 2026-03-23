@@ -1,1 +1,1 @@
-export const SITE_NAME = "data-drills";
+export const SITE_NAME = "Drills";

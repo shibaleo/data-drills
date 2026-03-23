@@ -7,9 +7,9 @@ export default function SubjectsPage() {
   return (
     <ProjectMasterPage
       makeConfig={(projectId) => ({
-        title: "科目",
+        title: "Subjects",
         endpoint: `/projects/${projectId}/subjects`,
-        entityName: "科目",
+        entityName: "Subject",
         hasColor: true,
         icon: <List className="size-5" />,
       })}

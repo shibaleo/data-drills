@@ -16,7 +16,7 @@ export function ProjectMasterPage({ makeConfig }: ProjectMasterPageProps) {
     return (
       <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground">
-          プロジェクトを選択してください
+          Please select a project
         </div>
       </div>
     );

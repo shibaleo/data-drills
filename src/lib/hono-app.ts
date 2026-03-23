@@ -8,18 +8,26 @@ import projects from "@/routes/projects";
 import problems from "@/routes/problems";
 import answers from "@/routes/answers";
 import flashcards from "@/routes/flashcards";
+import flashcardReviews from "@/routes/flashcard-reviews";
+import reviews from "@/routes/reviews";
 import apiKeys from "@/routes/api-keys";
 import users from "@/routes/users";
 import authRoutes from "@/routes/auth";
+import statuses from "@/routes/statuses";
+import tags from "@/routes/tags";
+import reviewTags from "@/routes/review-tags";
+import problemFiles from "@/routes/problem-files";
 
 const app = new Hono<Env>().basePath("/api/v1");
 
 app.use("*", logger());
 
-// Error handler
+// Error handler — include cause message for DB constraint errors
 app.onError((err, c) => {
   console.error(err);
-  return c.json({ error: err.message || "Internal Server Error" }, 500);
+  const causeMsg = err.cause instanceof Error ? err.cause.message : "";
+  const msg = causeMsg ? `${err.message} - ${causeMsg}` : (err.message || "Internal Server Error");
+  return c.json({ error: msg }, 500);
 });
 
 // Public routes
@@ -41,8 +49,14 @@ app.route("/projects", projects);
 app.route("/problems", problems);
 app.route("/answers", answers);
 app.route("/flashcards", flashcards);
+app.route("/flashcard-reviews", flashcardReviews);
+app.route("/reviews", reviews);
 app.route("/api-keys", apiKeys);
 app.route("/users", users);
+app.route("/statuses", statuses);
+app.route("/tags", tags);
+app.route("/review-tags", reviewTags);
+app.route("/problem-files", problemFiles);
 
 // /me endpoint — return authenticated user info
 app.get("/me", (c) => {

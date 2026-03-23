@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/lib/db";
-import { project, subject, level, topic, tag, reviewType } from "@/lib/db/schema";
+import { project, subject, level, topic } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { randomCode } from "@/lib/utils";
 
@@ -15,10 +15,12 @@ app.get("/", async (c) => {
 
 app.post("/", async (c) => {
   const body = await c.req.json();
-  const [row] = await db.insert(project).values({
-    code: body.code || randomCode(),
-    name: body.name,
-  }).returning();
+  const values = {
+    code: (body.code || randomCode()) as string,
+    name: body.name as string,
+    ...(body.id ? { id: body.id as string } : {}),
+  };
+  const [row] = await db.insert(project).values(values).returning();
   return c.json({ data: row }, 201);
 });
 
@@ -30,7 +32,10 @@ app.get("/:id", async (c) => {
 
 app.put("/:id", async (c) => {
   const body = await c.req.json();
-  const [row] = await db.update(project).set({ name: body.name, updatedAt: new Date() }).where(eq(project.id, c.req.param("id"))).returning();
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (body.code !== undefined) updates.code = body.code;
+  if (body.name !== undefined) updates.name = body.name;
+  const [row] = await db.update(project).set(updates).where(eq(project.id, c.req.param("id"))).returning();
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json({ data: row });
 });
@@ -56,19 +61,22 @@ function masterRoutes(table: any) {
   sub.post("/", async (c) => {
     const projectId = c.req.param("id")!;
     const body = await c.req.json();
-    const [row] = await db.insert(table).values({
-      code: body.code || randomCode(),
-      name: body.name,
+    const values = {
+      code: (body.code || randomCode()) as string,
+      name: body.name as string,
       projectId,
-      color: body.color ?? null,
-      sortOrder: body.sort_order ?? 0,
-    }).returning();
+      color: (body.color ?? null) as string | null,
+      sortOrder: (body.sort_order ?? 0) as number,
+      ...(body.id ? { id: body.id as string } : {}),
+    };
+    const [row] = await db.insert(table).values(values).returning();
     return c.json({ data: row }, 201);
   });
 
   sub.put("/:entityId", async (c) => {
     const body = await c.req.json();
     const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (body.code !== undefined) updates.code = body.code;
     if (body.name !== undefined) updates.name = body.name;
     if (body.color !== undefined) updates.color = body.color;
     if (body.sort_order !== undefined) updates.sortOrder = body.sort_order;
@@ -89,7 +97,5 @@ function masterRoutes(table: any) {
 app.route("/:id/subjects", masterRoutes(subject));
 app.route("/:id/levels", masterRoutes(level));
 app.route("/:id/topics", masterRoutes(topic));
-app.route("/:id/tags", masterRoutes(tag));
-app.route("/:id/review-types", masterRoutes(reviewType));
 
 export default app;

@@ -7,9 +7,9 @@ export default function TopicsPage() {
   return (
     <ProjectMasterPage
       makeConfig={(projectId) => ({
-        title: "トピック",
+        title: "Topics",
         endpoint: `/projects/${projectId}/topics`,
-        entityName: "トピック",
+        entityName: "Topic",
         hasColor: true,
         icon: <BookOpen className="size-5" />,
       })}

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "@/lib/db";
-import { answer, review } from "@/lib/db/schema";
+import { answer } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 const app = new Hono();
@@ -15,12 +15,14 @@ app.get("/", async (c) => {
 
 app.post("/", async (c) => {
   const body = await c.req.json();
-  const [row] = await db.insert(answer).values({
-    problemId: body.problem_id,
-    date: body.date,
-    duration: body.duration ?? null,
-    status: body.status,
-  }).returning();
+  const values = {
+    problemId: body.problem_id as string,
+    date: body.date as string,
+    duration: (body.duration ?? null) as number | null,
+    answerStatusId: (body.answer_status_id ?? null) as string | null,
+    ...(body.id ? { id: body.id as string } : {}),
+  };
+  const [row] = await db.insert(answer).values(values).returning();
   return c.json({ data: row }, 201);
 });
 
@@ -35,7 +37,7 @@ app.put("/:id", async (c) => {
   const updates: Record<string, unknown> = {};
   if (body.date !== undefined) updates.date = body.date;
   if (body.duration !== undefined) updates.duration = body.duration;
-  if (body.status !== undefined) updates.status = body.status;
+  if (body.answer_status_id !== undefined) updates.answerStatusId = body.answer_status_id;
   const [row] = await db.update(answer).set(updates).where(eq(answer.id, c.req.param("id"))).returning();
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json({ data: row });
@@ -43,29 +45,6 @@ app.put("/:id", async (c) => {
 
 app.delete("/:id", async (c) => {
   const [row] = await db.delete(answer).where(eq(answer.id, c.req.param("id"))).returning();
-  if (!row) return c.json({ error: "Not found" }, 404);
-  return c.json({ data: row });
-});
-
-// ── Reviews ──
-
-app.get("/:id/reviews", async (c) => {
-  const rows = await db.select().from(review).where(eq(review.answerId, c.req.param("id")));
-  return c.json({ data: rows });
-});
-
-app.post("/:id/reviews", async (c) => {
-  const body = await c.req.json();
-  const [row] = await db.insert(review).values({
-    answerId: c.req.param("id"),
-    reviewTypeId: body.review_type_id,
-    content: body.content ?? null,
-  }).returning();
-  return c.json({ data: row }, 201);
-});
-
-app.delete("/:id/reviews/:reviewId", async (c) => {
-  const [row] = await db.delete(review).where(eq(review.id, c.req.param("reviewId"))).returning();
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json({ data: row });
 });

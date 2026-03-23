@@ -52,7 +52,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       setState("authenticated");
     } else {
       if (isSignedIn) {
-        setError("認証に失敗しました");
+        setError("Authentication failed");
         await signOut();
       }
       setState("unauthenticated");
@@ -74,7 +74,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (state === "loading" || (state === "authenticated" && !me)) {
     return (
       <div className="flex h-dvh items-center justify-center">
-        <div className="text-muted-foreground">読み込み中...</div>
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }

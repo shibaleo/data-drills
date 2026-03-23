@@ -23,7 +23,7 @@ export function ProjectSelector() {
       }}
     >
       <SelectTrigger className="w-[200px]">
-        <SelectValue placeholder="プロジェクト選択" />
+        <SelectValue placeholder="Select project" />
       </SelectTrigger>
       <SelectContent>
         {projects.map((p) => (

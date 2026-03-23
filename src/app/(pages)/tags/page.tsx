@@ -1,18 +1,18 @@
 "use client";
 
-import { Tags } from "lucide-react";
-import { ProjectMasterPage } from "@/components/shared/project-master-page";
+import { Tag } from "lucide-react";
+import { MasterPage } from "@/components/shared/master-page";
 
 export default function TagsPage() {
   return (
-    <ProjectMasterPage
-      makeConfig={(projectId) => ({
-        title: "タグ",
-        endpoint: `/projects/${projectId}/tags`,
-        entityName: "タグ",
+    <MasterPage
+      config={{
+        title: "Tags",
+        endpoint: "/tags",
+        entityName: "Tag",
         hasColor: true,
-        icon: <Tags className="size-5" />,
-      })}
+        icon: <Tag className="size-5" />,
+      }}
     />
   );
 }

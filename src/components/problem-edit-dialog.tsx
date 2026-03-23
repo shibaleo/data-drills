@@ -1,0 +1,194 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import { Markdown } from "@/components/markdown";
+import { api, ApiError } from "@/lib/api-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
+} from "@/components/ui/select";
+
+interface LookupItem {
+  id: string;
+  name: string;
+}
+
+interface ProblemRow {
+  id: string;
+  code: string;
+  name: string | null;
+  subjectId: string | null;
+  levelId: string | null;
+  checkpoint: string | null;
+}
+
+interface ProblemEditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  problem: ProblemRow | null; // null = create mode
+  projectId: string;
+  subjects: LookupItem[];
+  levels: LookupItem[];
+  onSaved: () => void;
+  onDelete?: () => void;
+}
+
+export function ProblemEditDialog({
+  open, onOpenChange, problem, projectId, subjects, levels, onSaved, onDelete,
+}: ProblemEditDialogProps) {
+  const [saving, setSaving] = useState(false);
+  const [formCode, setFormCode] = useState("");
+  const [formName, setFormName] = useState("");
+  const [formSubject, setFormSubject] = useState("");
+  const [formLevel, setFormLevel] = useState("");
+  const [formCheckpoint, setFormCheckpoint] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    if (problem) {
+      setFormCode(problem.code);
+      setFormName(problem.name ?? "");
+      setFormSubject(problem.subjectId ?? "");
+      setFormLevel(problem.levelId ?? "");
+      setFormCheckpoint(problem.checkpoint ?? "");
+    } else {
+      setFormCode("");
+      setFormName("");
+      setFormSubject(subjects[0]?.id ?? "");
+      setFormLevel(levels[0]?.id ?? "");
+      setFormCheckpoint("");
+    }
+  }, [open, problem, subjects, levels]);
+
+  async function handleSave() {
+    if (saving) return;
+    if (!formCode.trim()) {
+      toast.error("コードを入力してください");
+      return;
+    }
+    setSaving(true);
+
+    const payload = {
+      code: formCode.trim(),
+      name: formName.trim() || null,
+      subject_id: formSubject || null,
+      level_id: formLevel || null,
+      checkpoint: formCheckpoint.trim() || null,
+      project_id: projectId,
+    };
+
+    try {
+      if (problem) {
+        await api.put(`/problems/${problem.id}`, payload);
+        toast.success("更新しました");
+      } else {
+        await api.post("/problems", payload);
+        toast.success("登録しました");
+      }
+      onOpenChange(false);
+      onSaved();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.body.error : "保存に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] flex flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>{problem ? "問題を編集" : "問題を登録"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {problem ? "Edit problem" : "Create problem"}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-2 overflow-y-auto min-h-0">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>科目</Label>
+              <Select value={formSubject} onValueChange={setFormSubject}>
+                <SelectTrigger>
+                  <SelectValue placeholder="選択..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>レベル</Label>
+              <Select value={formLevel} onValueChange={setFormLevel}>
+                <SelectTrigger>
+                  <SelectValue placeholder="選択..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {levels.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>コード</Label>
+              <Input
+                placeholder="例: 29-45"
+                value={formCode}
+                onChange={(e) => setFormCode(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>問題名</Label>
+              <Input
+                placeholder="例: 連結CF"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label>チェックポイント</Label>
+            <textarea
+              placeholder="この問題で確認すべきこと（Markdown 対応）"
+              value={formCheckpoint}
+              onChange={(e) => setFormCheckpoint(e.target.value)}
+              rows={Math.max(4, formCheckpoint.split("\n").length + 1)}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            {formCheckpoint && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">プレビュー</p>
+                <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+                  <Markdown>{formCheckpoint}</Markdown>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {problem && onDelete && (
+            <Button variant="destructive" size="sm" onClick={onDelete} className="mr-auto">
+              削除
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)} className={problem && onDelete ? "" : "flex-1"}>
+            キャンセル
+          </Button>
+          <Button onClick={handleSave} disabled={saving} className={problem && onDelete ? "" : "flex-1"}>
+            {problem ? "更新" : "登録"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

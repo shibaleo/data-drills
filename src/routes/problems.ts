@@ -16,15 +16,17 @@ app.get("/", async (c) => {
 
 app.post("/", async (c) => {
   const body = await c.req.json();
-  const [row] = await db.insert(problem).values({
-    code: body.code || randomCode(),
-    projectId: body.project_id,
-    subjectId: body.subject_id ?? null,
-    levelId: body.level_id ?? null,
-    topicId: body.topic_id ?? null,
-    name: body.name ?? null,
-    checkpoint: body.checkpoint ?? null,
-  }).returning();
+  const values = {
+    code: (body.code || randomCode()) as string,
+    projectId: body.project_id as string,
+    subjectId: (body.subject_id ?? null) as string | null,
+    levelId: (body.level_id ?? null) as string | null,
+    topicId: (body.topic_id ?? null) as string | null,
+    name: (body.name ?? null) as string | null,
+    checkpoint: (body.checkpoint ?? null) as string | null,
+    ...(body.id ? { id: body.id as string } : {}),
+  };
+  const [row] = await db.insert(problem).values(values).returning();
   return c.json({ data: row }, 201);
 });
 
@@ -37,7 +39,7 @@ app.get("/:id", async (c) => {
 app.put("/:id", async (c) => {
   const body = await c.req.json();
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  for (const key of ["name", "checkpoint"] as const) {
+  for (const key of ["code", "name", "checkpoint"] as const) {
     if (body[key] !== undefined) updates[key] = body[key];
   }
   if (body.subject_id !== undefined) updates.subjectId = body.subject_id;
@@ -86,11 +88,13 @@ app.get("/:id/files", async (c) => {
 
 app.post("/:id/files", async (c) => {
   const body = await c.req.json();
-  const [row] = await db.insert(problemFile).values({
+  const values = {
     problemId: c.req.param("id"),
-    gdriveFileId: body.gdrive_file_id,
-    fileName: body.file_name ?? null,
-  }).returning();
+    gdriveFileId: body.gdrive_file_id as string,
+    fileName: (body.file_name ?? null) as string | null,
+    ...(body.id ? { id: body.id as string } : {}),
+  };
+  const [row] = await db.insert(problemFile).values(values).returning();
   return c.json({ data: row }, 201);
 });
 

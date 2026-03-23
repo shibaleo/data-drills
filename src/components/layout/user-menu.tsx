@@ -63,14 +63,14 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
                 onClick={() => { setOpen(false); setSettingsOpen(true); }}
               >
                 <Settings className="size-4" />
-                ユーザー設定
+                Settings
               </button>
               <button
                 className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
                 onClick={handleLogout}
               >
                 <LogOut className="size-4" />
-                ログアウト
+                Log out
               </button>
             </div>
           </PopoverContent>
