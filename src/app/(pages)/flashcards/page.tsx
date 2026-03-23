@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Layers, Pencil, Trash2, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,8 +17,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
-import { ProjectSelector } from "@/components/shared/project-selector";
 import { Fab } from "@/components/shared/fab";
+import { usePageTitle, usePageSubtitle } from "@/lib/page-context";
 import { StatusTag } from "@/components/color-tags";
 import { RetentionBarRaw } from "@/components/retention-bar";
 import { Markdown } from "@/components/markdown";
@@ -102,6 +102,7 @@ function cardRetention(reviews: FlashcardReviewRow[], now: Date) {
 /* ── Page ── */
 
 export default function FlashcardsPage() {
+  usePageTitle("Flashcards");
   const { currentProject, statuses } = useProject();
   const [cards, setCards] = useState<FlashcardWithReviews[]>([]);
   const [topics, setTopics] = useState<TopicItem[]>([]);
@@ -158,6 +159,7 @@ export default function FlashcardsPage() {
   }, [currentProject]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  usePageSubtitle(cards.length > 0 ? `${cards.length}枚` : "");
 
   function openCreateDialog() {
     setEditItem(null);
@@ -252,18 +254,6 @@ export default function FlashcardsPage() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <span className="text-muted-foreground"><Layers className="size-5" /></span>
-          <h2 className="text-xl font-semibold">Flashcards</h2>
-        </div>
-        <div className="flex gap-2 items-center">
-          <span className="text-sm text-muted-foreground">{cards.length}枚</span>
-          <ProjectSelector />
-          <Button variant="outline" size="sm" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
-        </div>
-      </div>
-
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">読み込み中...</div>
       ) : (

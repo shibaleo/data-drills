@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
-import { Trash2, RefreshCw, GripVertical } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Trash2, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -34,6 +34,7 @@ import {
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { randomCode } from "@/lib/utils";
 import { Fab } from "@/components/shared/fab";
+import { usePageTitle } from "@/lib/page-context";
 
 // ── Types ──
 
@@ -52,9 +53,6 @@ export interface MasterPageConfig {
   entityName: string;
   hasColor?: boolean;
   hasPoint?: boolean;
-  icon?: ReactNode;
-  /** Extra ReactNode rendered in the header actions area (e.g. ProjectSelector) */
-  headerExtra?: ReactNode;
   /** Extra fields to include in the POST body when creating */
   extraCreatePayload?: Record<string, unknown>;
 }
@@ -269,6 +267,7 @@ function SortableRow({
 // ── Full MasterPage ──
 
 export function MasterPage({ config }: { config: MasterPageConfig }) {
+  usePageTitle(config.title);
   const [items, setItems] = useState<MasterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -334,17 +333,6 @@ export function MasterPage({ config }: { config: MasterPageConfig }) {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          {config.icon && <span className="text-muted-foreground">{config.icon}</span>}
-          <h2 className="text-xl font-semibold">{config.title}</h2>
-        </div>
-        <div className="flex gap-2">
-          {config.headerExtra}
-          <Button variant="outline" size="sm" onClick={fetchItems}><RefreshCw className="h-4 w-4" /></Button>
-        </div>
-      </div>
-
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
       ) : items.length === 0 ? (

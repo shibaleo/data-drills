@@ -1,10 +1,10 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useScrollContext } from "@/lib/scroll-context";
+import { usePageContext } from "@/lib/page-context";
 
 export function Fab({ onClick }: { onClick: () => void }) {
-  const { scrollingDown } = useScrollContext();
+  const { scrollingDown } = usePageContext();
 
   return (
     <button

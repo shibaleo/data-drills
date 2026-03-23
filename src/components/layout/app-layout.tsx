@@ -6,12 +6,13 @@ import { SITE_NAME } from "@/lib/site";
 import { Sidebar, SidebarNav } from "./sidebar";
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet";
 import { UserMenu } from "./user-menu";
-import { ScrollProvider, useScrollContext } from "@/lib/scroll-context";
+import { FilterPopover } from "@/components/shared/filter-popover";
+import { PageProvider, usePageContext } from "@/lib/page-context";
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { scrollingDown } = useScrollContext();
+  const { title, subtitle, scrollingDown } = usePageContext();
   useEffect(() => setMounted(true), []);
 
   return (
@@ -44,9 +45,11 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
           </button>
         )}
         <span className="text-lg font-semibold truncate text-primary">
-          {SITE_NAME}
+          {title || SITE_NAME}
         </span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-1">
+          {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+          <FilterPopover />
           <UserMenu collapsed />
         </div>
       </header>
@@ -54,15 +57,21 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
       {/* Desktop sidebar */}
       <Sidebar />
 
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <main className="flex-1 overflow-y-auto">
+        <div className="hidden md:flex items-center justify-end gap-2 px-4 pt-3 pb-1">
+          {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+          <FilterPopover />
+        </div>
+        {children}
+      </main>
     </div>
   );
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ScrollProvider>
+    <PageProvider>
       <LayoutInner>{children}</LayoutInner>
-    </ScrollProvider>
+    </PageProvider>
   );
 }

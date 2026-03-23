@@ -1,6 +1,5 @@
 "use client";
 
-import { List } from "lucide-react";
 import { ProjectMasterPage } from "@/components/shared/project-master-page";
 
 export default function SubjectsPage() {
@@ -11,7 +10,6 @@ export default function SubjectsPage() {
         endpoint: `/projects/${projectId}/subjects`,
         entityName: "Subject",
         hasColor: true,
-        icon: <List className="size-5" />,
       })}
     />
   );

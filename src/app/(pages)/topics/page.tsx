@@ -1,6 +1,5 @@
 "use client";
 
-import { BookOpen } from "lucide-react";
 import { ProjectMasterPage } from "@/components/shared/project-master-page";
 
 export default function TopicsPage() {
@@ -11,7 +10,6 @@ export default function TopicsPage() {
         endpoint: `/projects/${projectId}/topics`,
         entityName: "Topic",
         hasColor: true,
-        icon: <BookOpen className="size-5" />,
       })}
     />
   );

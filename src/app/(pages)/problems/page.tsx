@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { FileText, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
-import { ProjectSelector } from "@/components/shared/project-selector";
+import { usePageTitle } from "@/lib/page-context";
+import { Fab } from "@/components/shared/fab";
 import { ProblemEditDialog } from "@/components/problem-edit-dialog";
 
 interface DDProblem {
@@ -22,7 +22,8 @@ interface DDProblem {
 }
 
 export default function ProblemsPage() {
-  const { currentProject, subjects, levels } = useProject();
+  usePageTitle("Problems");
+  const { currentProject, subjects, levels, filterSubjectId, filterLevelId } = useProject();
   const [problems, setProblems] = useState<DDProblem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -55,6 +56,12 @@ export default function ProblemsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const filtered = useMemo(() => problems.filter((p) => {
+    if (filterSubjectId && p.subjectId !== filterSubjectId) return false;
+    if (filterLevelId && p.levelId !== filterLevelId) return false;
+    return true;
+  }), [problems, filterSubjectId, filterLevelId]);
+
   const handleDelete = async (id: string) => {
     try {
       await api.delete(`/problems/${id}`);
@@ -75,21 +82,9 @@ export default function ProblemsPage() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <span className="text-muted-foreground"><FileText className="size-5" /></span>
-          <h2 className="text-xl font-semibold">Problems</h2>
-        </div>
-        <div className="flex gap-2">
-          <ProjectSelector />
-          <Button variant="outline" size="sm" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
-          <Button size="sm" onClick={() => { setEditProblem(null); setEditDialogOpen(true); }}><Plus className="h-4 w-4 mr-1" />New</Button>
-        </div>
-      </div>
-
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
-      ) : problems.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No problems found</div>
       ) : (
         <div className="border border-border rounded-md overflow-hidden">
@@ -104,7 +99,7 @@ export default function ProblemsPage() {
               </tr>
             </thead>
             <tbody>
-              {problems.map((p) => (
+              {filtered.map((p) => (
                 <tr
                   key={p.id}
                   className="border-b border-border/30 transition-colors cursor-pointer hover:bg-accent/20"
@@ -147,6 +142,8 @@ export default function ProblemsPage() {
         onSaved={() => { setEditDialogOpen(false); fetchData(); }}
         onDelete={editProblem ? () => handleDelete(editProblem.id) : undefined}
       />
+
+      <Fab onClick={() => { setEditProblem(null); setEditDialogOpen(true); }} />
     </div>
   );
 }

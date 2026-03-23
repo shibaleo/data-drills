@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Clock, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { useAnswerForm, useEditAnswerForm } from "@/hooks/use-answer-form";
-import { ProjectSelector } from "@/components/shared/project-selector";
+import { usePageTitle } from "@/lib/page-context";
 import { Fab } from "@/components/shared/fab";
 import { ProblemCard, type ProblemWithAnswers } from "@/components/problem-card";
 import { ProblemEditDialog } from "@/components/problem-edit-dialog";
@@ -71,7 +69,8 @@ function secondsToDuration(seconds: number | null): string | null {
 }
 
 export default function TimelinePage() {
-  const { currentProject, subjects, levels, statuses } = useProject();
+  usePageTitle("Timeline");
+  const { currentProject, subjects, levels, statuses, filterSubjectId, filterLevelId } = useProject();
   const [problems, setProblems] = useState<ProblemWithAnswers[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -195,6 +194,12 @@ export default function TimelinePage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const filtered = useMemo(() => problems.filter((p) => {
+    if (filterSubjectId && p.subject_id !== filterSubjectId) return false;
+    if (filterLevelId && p.level_id !== filterLevelId) return false;
+    return true;
+  }), [problems, filterSubjectId, filterLevelId]);
+
   // Answer create form
   const answerForm = useAnswerForm(() => fetchData());
 
@@ -226,24 +231,13 @@ export default function TimelinePage() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <span className="text-muted-foreground"><Clock className="size-5" /></span>
-          <h2 className="text-xl font-semibold">Timeline</h2>
-        </div>
-        <div className="flex gap-2">
-          <ProjectSelector />
-          <Button variant="outline" size="sm" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
-        </div>
-      </div>
-
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
-      ) : problems.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No problems found</div>
       ) : (
         <div className="max-w-2xl mx-auto space-y-4">
-          {problems.map((p) => (
+          {filtered.map((p) => (
             <ProblemCard
               key={p.id}
               problem={p}

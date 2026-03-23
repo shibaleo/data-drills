@@ -1,6 +1,5 @@
 "use client";
 
-import { Tag } from "lucide-react";
 import { MasterPage } from "@/components/shared/master-page";
 
 export default function TagsPage() {
@@ -11,7 +10,6 @@ export default function TagsPage() {
         endpoint: "/tags",
         entityName: "Tag",
         hasColor: true,
-        icon: <Tag className="size-5" />,
       }}
     />
   );

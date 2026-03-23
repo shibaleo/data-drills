@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Shield, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { usePageTitle } from "@/lib/page-context";
+import { Fab } from "@/components/shared/fab";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ interface UserRow {
 }
 
 export default function UsersPage() {
+  usePageTitle("Users");
   const [items, setItems] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -105,19 +107,6 @@ export default function UsersPage() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <span className="text-muted-foreground"><Shield className="size-5" /></span>
-          <h2 className="text-xl font-semibold">Users</h2>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={fetchItems}><RefreshCw className="h-4 w-4" /></Button>
-          <Button size="sm" onClick={() => { setNewEmail(""); setNewName(""); setCreateOpen(true); }}>
-            <Plus className="h-4 w-4 mr-1" />New
-          </Button>
-        </div>
-      </div>
-
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
       ) : items.length === 0 ? (
@@ -218,6 +207,8 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Fab onClick={() => { setNewEmail(""); setNewName(""); setCreateOpen(true); }} />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { FolderKanban } from "lucide-react";
 import { MasterPage } from "@/components/shared/master-page";
 
 export default function ProjectsPage() {
@@ -10,7 +9,6 @@ export default function ProjectsPage() {
         title: "Projects",
         endpoint: "/projects",
         entityName: "Project",
-        icon: <FolderKanban className="size-5" />,
       }}
     />
   );

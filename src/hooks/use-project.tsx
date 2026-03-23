@@ -24,6 +24,10 @@ interface ProjectContextValue {
   subjects: LookupItem[];
   levels: LookupItem[];
   statuses: LookupItem[];
+  filterSubjectId: string | null;
+  setFilterSubjectId: (id: string | null) => void;
+  filterLevelId: string | null;
+  setFilterLevelId: (id: string | null) => void;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -56,6 +60,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [subjects, setSubjects] = useState<LookupItem[]>([]);
   const [levels, setLevels] = useState<LookupItem[]>([]);
   const [statuses, setStatuses] = useState<LookupItem[]>([]);
+  const [filterSubjectId, setFilterSubjectId] = useState<string | null>(null);
+  const [filterLevelId, setFilterLevelId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -89,13 +95,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const setCurrentProject = useCallback((p: Project) => {
     setCurrentProjectState(p);
+    setFilterSubjectId(null);
+    setFilterLevelId(null);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, p.id);
     }
   }, []);
 
   return (
-    <ProjectContext.Provider value={{ projects, currentProject, setCurrentProject, refresh, subjects, levels, statuses }}>
+    <ProjectContext.Provider value={{ projects, currentProject, setCurrentProject, refresh, subjects, levels, statuses, filterSubjectId, setFilterSubjectId, filterLevelId, setFilterLevelId }}>
       {children}
     </ProjectContext.Provider>
   );

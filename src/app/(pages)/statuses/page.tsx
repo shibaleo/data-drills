@@ -1,6 +1,5 @@
 "use client";
 
-import { CircleDot } from "lucide-react";
 import { MasterPage } from "@/components/shared/master-page";
 
 export default function StatusesPage() {
@@ -11,7 +10,6 @@ export default function StatusesPage() {
         endpoint: "/statuses",
         entityName: "Status",
         hasColor: true,
-        icon: <CircleDot className="size-5" />,
       }}
     />
   );

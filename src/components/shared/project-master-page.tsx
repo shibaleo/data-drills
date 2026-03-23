@@ -1,7 +1,6 @@
 "use client";
 
 import { useProject } from "@/hooks/use-project";
-import { ProjectSelector } from "./project-selector";
 import { MasterPage, type MasterPageConfig } from "./master-page";
 
 interface ProjectMasterPageProps {
@@ -21,12 +20,10 @@ export function ProjectMasterPage({ makeConfig }: ProjectMasterPageProps) {
     );
   }
 
-  const config = makeConfig(currentProject.id);
-
   return (
     <MasterPage
       key={currentProject.id}
-      config={{ ...config, headerExtra: <ProjectSelector /> }}
+      config={makeConfig(currentProject.id)}
     />
   );
 }

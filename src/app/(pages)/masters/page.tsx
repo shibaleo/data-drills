@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, RefreshCw, LayoutGrid, Pencil, GripVertical } from "lucide-react";
+import { Plus, Pencil, GripVertical } from "lucide-react";
 import { toast } from "sonner";
+import { usePageTitle } from "@/lib/page-context";
 import {
   DndContext,
   closestCenter,
@@ -295,6 +296,7 @@ interface ProjectData {
 }
 
 export default function MastersPage() {
+  usePageTitle("Masters");
   const [statuses, setStatuses] = useState<MasterRow[]>([]);
   const [projects, setProjects] = useState<MasterRow[]>([]);
   const [projectData, setProjectData] = useState<ProjectData[]>([]);
@@ -386,16 +388,6 @@ export default function MastersPage() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <span className="text-muted-foreground"><LayoutGrid className="size-5" /></span>
-          <h2 className="text-xl font-semibold">Masters</h2>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={fetchAll}><RefreshCw className="h-4 w-4" /></Button>
-        </div>
-      </div>
-
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
       ) : (

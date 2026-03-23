@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { PenLine, RefreshCw, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
-import { ProjectSelector } from "@/components/shared/project-selector";
+import { usePageTitle } from "@/lib/page-context";
 import { StatusTag } from "@/components/color-tags";
 import { Badge } from "@/components/ui/badge";
 import type { AnswerStatus } from "@/lib/types";
@@ -38,7 +37,8 @@ function fmtDuration(seconds: number | null): string {
 }
 
 export default function AnswersPage() {
-  const { currentProject, statuses, subjects, levels } = useProject();
+  usePageTitle("Answers");
+  const { currentProject, statuses, subjects, levels, filterSubjectId, filterLevelId } = useProject();
   const [answers, setAnswers] = useState<DDAnswer[]>([]);
   const [problems, setProblems] = useState<DDProblem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +79,14 @@ export default function AnswersPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const filteredAnswers = useMemo(() => answers.filter((a) => {
+    const prob = problemMap.get(a.problemId);
+    if (!prob) return true;
+    if (filterSubjectId && prob.subjectId !== filterSubjectId) return false;
+    if (filterLevelId && prob.levelId !== filterLevelId) return false;
+    return true;
+  }), [answers, problemMap, filterSubjectId, filterLevelId]);
+
   const handleDelete = async (id: string) => {
     try {
       await api.delete(`/answers/${id}`);
@@ -99,20 +107,9 @@ export default function AnswersPage() {
 
   return (
     <div className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <span className="text-muted-foreground"><PenLine className="size-5" /></span>
-          <h2 className="text-xl font-semibold">Answers</h2>
-        </div>
-        <div className="flex gap-2">
-          <ProjectSelector />
-          <Button variant="outline" size="sm" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
-        </div>
-      </div>
-
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
-      ) : answers.length === 0 ? (
+      ) : filteredAnswers.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No answers found</div>
       ) : (
         <div className="border border-border rounded-md overflow-hidden">
@@ -127,7 +124,7 @@ export default function AnswersPage() {
               </tr>
             </thead>
             <tbody>
-              {answers.map((a) => {
+              {filteredAnswers.map((a) => {
                 const prob = problemMap.get(a.problemId);
                 const statusName = a.answerStatusId ? statusMap.get(a.answerStatusId) : null;
                 return (
