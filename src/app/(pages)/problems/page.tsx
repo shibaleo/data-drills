@@ -1,17 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { FileText, Plus, RefreshCw } from "lucide-react";
+import { FileText, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { ProjectSelector } from "@/components/shared/project-selector";
-import { ProblemCard, type ProblemWithAnswers } from "@/components/problem-card";
 import { ProblemEditDialog } from "@/components/problem-edit-dialog";
-import type { Problem, Answer, AnswerStatus, Review, ProblemFile } from "@/lib/types";
 
-// DD API response types (camelCase from Drizzle)
 interface DDProblem {
   id: string;
   code: string;
@@ -24,178 +21,41 @@ interface DDProblem {
   updatedAt: string;
 }
 
-interface DDAnswer {
-  id: string;
-  problemId: string;
-  date: string;
-  duration: number | null; // seconds
-  answerStatusId: string | null;
-  createdAt: string;
-}
-
-interface DDReview {
-  id: string;
-  answerId: string;
-  content: string | null;
-  createdAt: string;
-}
-
-interface DDReviewTag {
-  reviewId: string;
-  tagId: string;
-}
-
-interface DDTag {
-  id: string;
-  name: string;
-}
-
-interface DDProblemFile {
-  id: string;
-  problemId: string;
-  gdriveFileId: string;
-  fileName: string | null;
-  createdAt: string;
-}
-
-/** Convert integer seconds → "HH:MM:SS" string for LD compatibility */
-function secondsToDuration(seconds: number | null): string | null {
-  if (seconds === null) return null;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
 export default function ProblemsPage() {
-  const { currentProject, subjects, levels, statuses } = useProject();
-  const [problems, setProblems] = useState<ProblemWithAnswers[]>([]);
+  const { currentProject, subjects, levels } = useProject();
+  const [problems, setProblems] = useState<DDProblem[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Problem edit dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editProblem, setEditProblem] = useState<Problem | null>(null);
+  const [editProblem, setEditProblem] = useState<DDProblem | null>(null);
 
-  // Build status ID → name map
-  const statusMap = useMemo(() => {
+  const subjectMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const s of statuses) m.set(s.id, s.name);
+    for (const s of subjects) m.set(s.id, s.name);
     return m;
-  }, [statuses]);
+  }, [subjects]);
 
-  const now = useMemo(() => new Date(), []);
+  const levelMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const l of levels) m.set(l.id, l.name);
+    return m;
+  }, [levels]);
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const [ddProblems, ddAnswers, ddReviews, ddReviewTags, ddTags, ddFiles] = await Promise.all([
-        fetchAllPages<DDProblem>("/problems", { project_id: currentProject.id }),
-        fetchAllPages<DDAnswer>("/answers"),
-        fetchAllPages<DDReview>("/reviews"),
-        fetchAllPages<DDReviewTag>("/review-tags"),
-        fetchAllPages<DDTag>("/tags"),
-        fetchAllPages<DDProblemFile>("/problem-files"),
-      ]);
-
-      // Build tag lookup
-      const tagMap = new Map<string, string>();
-      for (const t of ddTags) tagMap.set(t.id, t.name);
-
-      // Build review → tags map
-      const reviewTagsMap = new Map<string, string[]>();
-      for (const rt of ddReviewTags) {
-        const list = reviewTagsMap.get(rt.reviewId) ?? [];
-        list.push(tagMap.get(rt.tagId) ?? "");
-        reviewTagsMap.set(rt.reviewId, list);
-      }
-
-      // Convert DD reviews → LD reviews, grouped by answerId
-      const reviewsByAnswer = new Map<string, Review[]>();
-      for (const r of ddReviews) {
-        const tags = reviewTagsMap.get(r.id) ?? [];
-        const ldReview: Review = {
-          id: r.id,
-          content: r.content ?? "",
-          review_type: (tags[0] as Review["review_type"]) ?? null,
-          answer_id: r.answerId,
-          created_at: r.createdAt,
-          updated_at: r.createdAt,
-        };
-        const list = reviewsByAnswer.get(r.answerId) ?? [];
-        list.push(ldReview);
-        reviewsByAnswer.set(r.answerId, list);
-      }
-
-      // Convert DD answers → LD answers, grouped by problemId
-      const answersByProblem = new Map<string, (Answer & { reviews: Review[] })[]>();
-      for (const a of ddAnswers) {
-        const ldAnswer: Answer & { reviews: Review[] } = {
-          id: a.id,
-          date: a.date,
-          duration: secondsToDuration(a.duration),
-          status: (a.answerStatusId ? statusMap.get(a.answerStatusId) as AnswerStatus ?? null : null),
-          problem_id: a.problemId,
-          created_at: a.createdAt,
-          updated_at: a.createdAt,
-          reviews: reviewsByAnswer.get(a.id) ?? [],
-        };
-        const list = answersByProblem.get(a.problemId) ?? [];
-        list.push(ldAnswer);
-        answersByProblem.set(a.problemId, list);
-      }
-
-      // Convert DD problem files → LD format, grouped by problemId
-      const filesByProblem = new Map<string, ProblemFile[]>();
-      for (const f of ddFiles) {
-        const ldFile: ProblemFile = {
-          id: f.id,
-          problem_id: f.problemId,
-          gdrive_file_id: f.gdriveFileId,
-          file_name: f.fileName ?? "",
-          created_at: f.createdAt,
-        };
-        const list = filesByProblem.get(f.problemId) ?? [];
-        list.push(ldFile);
-        filesByProblem.set(f.problemId, list);
-      }
-
-      // Convert DD problems → LD problems with answers
-      const combined: ProblemWithAnswers[] = ddProblems.map((p) => ({
-        id: p.id,
-        code: p.code,
-        name: p.name ?? "",
-        subject_id: p.subjectId ?? "",
-        level_id: p.levelId ?? "",
-        checkpoint: p.checkpoint,
-        project_id: p.projectId,
-        created_at: p.createdAt,
-        updated_at: p.updatedAt,
-        problem_files: filesByProblem.get(p.id),
-        answers: answersByProblem.get(p.id) ?? [],
-      }));
-
-      setProblems(combined);
+      const data = await fetchAllPages<DDProblem>("/problems", { project_id: currentProject.id });
+      setProblems(data);
     } catch {
-      toast.error("Failed to fetch data");
+      toast.error("Failed to fetch problems");
     } finally {
       setLoading(false);
     }
-  }, [currentProject, statusMap]);
+  }, [currentProject]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleEditProblem = (p: Problem) => {
-    setEditProblem(p);
-    setEditDialogOpen(true);
-  };
-
-  const handleCreate = () => {
-    setEditProblem(null);
-    setEditDialogOpen(true);
-  };
-
-  const handleDeleteProblem = async (id: string) => {
+  const handleDelete = async (id: string) => {
     try {
       await api.delete(`/problems/${id}`);
       toast.success("削除しました");
@@ -223,7 +83,7 @@ export default function ProblemsPage() {
         <div className="flex gap-2">
           <ProjectSelector />
           <Button variant="outline" size="sm" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
-          <Button size="sm" onClick={handleCreate}><Plus className="h-4 w-4 mr-1" />New</Button>
+          <Button size="sm" onClick={() => { setEditProblem(null); setEditDialogOpen(true); }}><Plus className="h-4 w-4 mr-1" />New</Button>
         </div>
       </div>
 
@@ -232,19 +92,41 @@ export default function ProblemsPage() {
       ) : problems.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No problems found</div>
       ) : (
-        <div className="space-y-4">
-          {problems.map((p) => (
-            <ProblemCard
-              key={p.id}
-              problem={p}
-              now={now}
-              onCheck={() => { /* TODO: answer dialog */ }}
-              onEditProblem={handleEditProblem}
-              onEditAnswer={() => { /* TODO: answer edit dialog */ }}
-              onDelete={handleDeleteProblem}
-              onPdfLinked={() => fetchData()}
-            />
-          ))}
+        <div className="border border-border rounded-md overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/50 text-left">
+                <th className="py-2 px-3 font-medium">Code</th>
+                <th className="py-2 px-3 font-medium">Name</th>
+                <th className="py-2 px-3 font-medium">Subject</th>
+                <th className="py-2 px-3 font-medium">Level</th>
+                <th className="py-2 px-3 font-medium w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {problems.map((p) => (
+                <tr
+                  key={p.id}
+                  className="border-b border-border/30 transition-colors cursor-pointer hover:bg-accent/20"
+                  onClick={() => { setEditProblem(p); setEditDialogOpen(true); }}
+                >
+                  <td className="py-2 px-3 font-mono text-xs">{p.code}</td>
+                  <td className="py-2 px-3">{p.name ?? ""}</td>
+                  <td className="py-2 px-3 text-muted-foreground">{p.subjectId ? subjectMap.get(p.subjectId) ?? "" : ""}</td>
+                  <td className="py-2 px-3 text-muted-foreground">{p.levelId ? levelMap.get(p.levelId) ?? "" : ""}</td>
+                  <td className="py-2 px-3">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}
+                      className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -255,20 +137,16 @@ export default function ProblemsPage() {
           id: editProblem.id,
           code: editProblem.code,
           name: editProblem.name,
-          subjectId: editProblem.subject_id,
-          levelId: editProblem.level_id,
+          subjectId: editProblem.subjectId,
+          levelId: editProblem.levelId,
           checkpoint: editProblem.checkpoint,
         } : null}
         projectId={currentProject.id}
         subjects={subjects}
         levels={levels}
         onSaved={() => { setEditDialogOpen(false); fetchData(); }}
-        onDelete={editProblem ? () => handleDeleteProblem(editProblem.id) : undefined}
+        onDelete={editProblem ? () => handleDelete(editProblem.id) : undefined}
       />
-
-      <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg" size="icon" onClick={handleCreate}>
-        <Plus className="h-6 w-6" />
-      </Button>
     </div>
   );
 }

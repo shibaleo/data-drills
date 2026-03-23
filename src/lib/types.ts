@@ -62,3 +62,9 @@ export interface Review {
 }
 
 export const ANSWER_STATUSES: AnswerStatus[] = ['Yet', 'Repeat', 'Check', 'Recall', 'Done']
+export const REVIEW_TYPES: ReviewType[] = [
+  '質問', '理解', '確認', '認知', '混同',
+  '不理解', '不作為', '桁ミス', '思考特性', '問題傾向',
+  '符号ミス', '問題文不読', '足し算ミス', 'Pending理解',
+  '期間数えミス', '数字見間違い', 'DONE', '解答パターン',
+]
