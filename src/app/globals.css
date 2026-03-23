@@ -107,3 +107,34 @@
     min-height: 100dvh;
   }
 }
+
+/* FlipCard animation */
+.flip-container {
+  perspective: 800px;
+}
+
+.flip-inner {
+  position: relative;
+  transition: transform 0.5s ease-in-out, height 0.5s ease-in-out;
+  transform-style: preserve-3d;
+}
+
+.flip-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-front,
+.flip-back {
+  backface-visibility: hidden;
+  position: absolute;
+  inset: 0;
+}
+
+.flip-front > *,
+.flip-back > * {
+  min-height: 100%;
+}
+
+.flip-back {
+  transform: rotateY(180deg);
+}

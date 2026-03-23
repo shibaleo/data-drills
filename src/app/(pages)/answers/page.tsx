@@ -8,12 +8,15 @@ import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { ProjectSelector } from "@/components/shared/project-selector";
 import { StatusTag } from "@/components/color-tags";
+import { Badge } from "@/components/ui/badge";
 import type { AnswerStatus } from "@/lib/types";
 
 interface DDProblem {
   id: string;
   code: string;
   name: string | null;
+  subjectId: string | null;
+  levelId: string | null;
 }
 
 interface DDAnswer {
@@ -35,7 +38,7 @@ function fmtDuration(seconds: number | null): string {
 }
 
 export default function AnswersPage() {
-  const { currentProject, statuses } = useProject();
+  const { currentProject, statuses, subjects, levels } = useProject();
   const [answers, setAnswers] = useState<DDAnswer[]>([]);
   const [problems, setProblems] = useState<DDProblem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,8 +134,14 @@ export default function AnswersPage() {
                   <tr key={a.id} className="border-b border-border/30 hover:bg-accent/20">
                     <td className="py-2 px-3 text-xs">{a.date ? new Date(a.date).toLocaleDateString("ja-JP") : ""}</td>
                     <td className="py-2 px-3">
-                      <span className="font-mono text-xs">{prob?.code ?? ""}</span>
-                      {prob?.name && <span className="ml-2 text-muted-foreground">{prob.name}</span>}
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs">{prob?.code ?? ""}</span>
+                        {prob?.name && <span className="text-muted-foreground">{prob.name}</span>}
+                        <div className="ml-auto flex items-center gap-1 shrink-0">
+                          {prob?.subjectId && (() => { const s = subjects.find((x) => x.id === prob.subjectId); return s ? <Badge variant="secondary" className="text-[10px] text-foreground/70">{s.name}</Badge> : null; })()}
+                          {prob?.levelId && (() => { const l = levels.find((x) => x.id === prob.levelId); return l ? <Badge variant="secondary" className="text-[10px] text-foreground/70">{l.name}</Badge> : null; })()}
+                        </div>
+                      </div>
                     </td>
                     <td className="py-2 px-3">
                       {statusName && <StatusTag status={statusName as AnswerStatus} />}

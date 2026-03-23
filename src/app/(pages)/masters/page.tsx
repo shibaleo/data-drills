@@ -38,6 +38,8 @@ const SECTIONS: SectionDef[] = [
   { key: "levels", entityName: "Level", pluralName: "Levels", path: "levels", hasColor: true },
   { key: "problems", entityName: "Problem", pluralName: "Problems", path: "problems", hasColor: false, topLevel: true },
   { key: "topics", entityName: "Topic", pluralName: "Topics", path: "topics", hasColor: true },
+  { key: "statuses", entityName: "Status", pluralName: "Statuses", path: "statuses", hasColor: false, topLevel: true },
+  { key: "projects", entityName: "Project", pluralName: "Projects", path: "projects", hasColor: false, topLevel: true },
 ];
 
 function MasterSection({

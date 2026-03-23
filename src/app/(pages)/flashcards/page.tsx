@@ -1,36 +1,52 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Bookmark, Plus, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Bookmark, Plus, Pencil, Trash2, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { ProjectSelector } from "@/components/shared/project-selector";
+import { RetentionBarRaw } from "@/components/retention-bar";
+import { Markdown } from "@/components/markdown";
 import { randomCode } from "@/lib/utils";
-import {
-  FlashcardCard,
-  type FlashcardWithReviews,
-  type FlashcardRow,
-  type FlashcardReviewRow,
-} from "@/components/flashcard-card";
+import { computeStability, retention } from "@/lib/forgetting-curve";
+import { toJSTDateString, jstDayDiff } from "@/lib/date-utils";
+
+/* ── Types ── */
+
+interface FlashcardRow {
+  id: string;
+  code: string;
+  projectId: string;
+  topicId: string | null;
+  front: string;
+  back: string;
+  createdAt: string;
+}
+
+interface FlashcardReviewRow {
+  id: string;
+  flashcardId: string;
+  quality: number;
+  reviewedAt: string;
+  nextReviewAt: string | null;
+}
+
+interface FlashcardWithReviews extends FlashcardRow {
+  reviews: FlashcardReviewRow[];
+}
 
 interface TopicItem {
   id: string;
@@ -38,36 +54,87 @@ interface TopicItem {
   color?: string | null;
 }
 
+/* ── FlipCard ── */
+
+function FlipCard({ flipped, front, back }: { flipped: boolean; front: React.ReactNode; back: React.ReactNode }) {
+  const frontRef = useRef<HTMLDivElement>(null);
+  const backRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number>(0);
+
+  useEffect(() => {
+    function measure() {
+      const fh = frontRef.current?.scrollHeight ?? 0;
+      const bh = backRef.current?.scrollHeight ?? 0;
+      setHeight(Math.max(fh, bh));
+    }
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (frontRef.current) ro.observe(frontRef.current);
+    if (backRef.current) ro.observe(backRef.current);
+    return () => ro.disconnect();
+  }, [front, back]);
+
+  return (
+    <div className="flip-container">
+      <div className={`flip-inner ${flipped ? "flipped" : ""}`} style={{ height }}>
+        <div ref={frontRef} className="flip-front">{front}</div>
+        <div ref={backRef} className="flip-back">{back}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Quality labels ── */
+
+const QUALITY_LABELS: { value: number; label: string; color: string }[] = [
+  { value: 1, label: "全く覚えてない", color: "bg-red-500/20 text-red-400" },
+  { value: 2, label: "うっすら", color: "bg-orange-500/20 text-orange-400" },
+  { value: 3, label: "ヒントあれば", color: "bg-amber-400/20 text-amber-300" },
+  { value: 4, label: "ほぼ覚えてる", color: "bg-green-500/20 text-green-400" },
+  { value: 5, label: "完璧", color: "bg-blue-500/20 text-blue-400" },
+];
+
+/* ── Compute card retention ── */
+
+function cardRetention(reviews: FlashcardReviewRow[], now: Date) {
+  if (reviews.length === 0) return { ret: 0, stability: 0, elapsedDays: Infinity, reviewCount: 0 };
+  const sorted = [...reviews].sort((a, b) => a.reviewedAt.localeCompare(b.reviewedAt));
+  const qualities = sorted.map((r) => r.quality);
+  const stab = computeStability(qualities);
+  const elapsedDays = Math.max(0, jstDayDiff(toJSTDateString(now), sorted[sorted.length - 1].reviewedAt));
+  const ret = retention(elapsedDays, stab);
+  return { ret, stability: stab, elapsedDays, reviewCount: sorted.length };
+}
+
+/* ── Page ── */
+
 export default function FlashcardsPage() {
   const { currentProject } = useProject();
-  const [flashcardsWithReviews, setFlashcardsWithReviews] = useState<FlashcardWithReviews[]>([]);
+  const [cards, setCards] = useState<FlashcardWithReviews[]>([]);
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Edit dialog
+  // Create/edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<FlashcardRow | null>(null);
-  const [front, setFront] = useState("");
-  const [back, setBack] = useState("");
-  const [topicId, setTopicId] = useState("__none__");
+  const [formFront, setFormFront] = useState("");
+  const [formBack, setFormBack] = useState("");
+  const [formTopicId, setFormTopicId] = useState("__none__");
   const [saving, setSaving] = useState(false);
 
-  // Study mode
-  const [studyMode, setStudyMode] = useState(false);
-  const [studyIndex, setStudyIndex] = useState(0);
-  const [showBack, setShowBack] = useState(false);
+  // Inline reveal state
+  const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const [cards, reviews, tops] = await Promise.all([
+      const [rawCards, reviews, tops] = await Promise.all([
         fetchAllPages<FlashcardRow>("/flashcards", { project_id: currentProject.id }),
         fetchAllPages<FlashcardReviewRow>("/flashcard-reviews"),
         fetchAllPages<TopicItem>(`/projects/${currentProject.id}/topics`),
       ]);
 
-      // Group reviews by flashcardId
       const reviewMap = new Map<string, FlashcardReviewRow[]>();
       for (const r of reviews) {
         const list = reviewMap.get(r.flashcardId) ?? [];
@@ -75,22 +142,20 @@ export default function FlashcardsPage() {
         reviewMap.set(r.flashcardId, list);
       }
 
-      const combined: FlashcardWithReviews[] = cards.map((fc) => ({
+      const combined: FlashcardWithReviews[] = rawCards.map((fc) => ({
         ...fc,
         reviews: reviewMap.get(fc.id) ?? [],
       }));
 
-      // Sort by most recent review date (desc), cards with no reviews last
+      // Sort by retention (lowest first = most urgent)
+      const now = new Date();
       combined.sort((a, b) => {
-        const aMax = a.reviews.reduce((m, x) => (x.reviewedAt > m ? x.reviewedAt : m), "");
-        const bMax = b.reviews.reduce((m, x) => (x.reviewedAt > m ? x.reviewedAt : m), "");
-        if (!aMax && !bMax) return 0;
-        if (!aMax) return 1;
-        if (!bMax) return -1;
-        return bMax.localeCompare(aMax);
+        const ra = cardRetention(a.reviews, now);
+        const rb = cardRetention(b.reviews, now);
+        return ra.ret - rb.ret;
       });
 
-      setFlashcardsWithReviews(combined);
+      setCards(combined);
       setTopics(tops);
     } catch {
       toast.error("Failed to fetch data");
@@ -101,109 +166,86 @@ export default function FlashcardsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const openCreate = () => {
+  function openCreateDialog() {
     setEditItem(null);
-    setFront("");
-    setBack("");
-    setTopicId("__none__");
+    setFormFront("");
+    setFormBack("");
+    setFormTopicId("__none__");
     setDialogOpen(true);
-  };
+  }
 
-  const openEdit = (fc: FlashcardRow) => {
-    setEditItem(fc);
-    setFront(fc.front);
-    setBack(fc.back);
-    setTopicId(fc.topicId ?? "__none__");
+  function openEditDialog(card: FlashcardRow) {
+    setEditItem(card);
+    setFormFront(card.front);
+    setFormBack(card.back);
+    setFormTopicId(card.topicId ?? "__none__");
     setDialogOpen(true);
-  };
+  }
 
-  const handleSave = async () => {
-    if (!front.trim() || !back.trim()) {
-      toast.error("Front and back are required");
+  async function handleSave() {
+    if (!formFront.trim() || !formBack.trim()) {
+      toast.error("表面と裏面を入力してください");
       return;
     }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
-        front: front.trim(),
-        back: back.trim(),
-        topic_id: topicId === "__none__" ? null : topicId,
+        front: formFront.trim(),
+        back: formBack.trim(),
+        topic_id: formTopicId === "__none__" ? null : formTopicId,
       };
       if (editItem) {
         await api.put(`/flashcards/${editItem.id}`, payload);
-        toast.success("更新しました");
+        toast.success("カードを更新しました");
       } else {
         payload.project_id = currentProject!.id;
         payload.code = randomCode();
         await api.post("/flashcards", payload);
-        toast.success("作成しました");
+        toast.success("カードを作成しました");
       }
       setDialogOpen(false);
       fetchData();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save");
+      toast.error(e instanceof Error ? e.message : "保存に失敗");
     } finally {
       setSaving(false);
     }
-  };
+  }
 
-  const handleDelete = async () => {
-    if (!editItem) return;
+  async function handleDelete(id: string) {
     try {
-      await api.delete(`/flashcards/${editItem.id}`);
-      toast.success("削除しました");
+      await api.delete(`/flashcards/${id}`);
+      toast.success("カードを削除しました");
       setDialogOpen(false);
       fetchData();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.body.error : "削除に失敗しました");
     }
-  };
+  }
 
-  const handleAddReview = (fc: FlashcardWithReviews) => {
-    const idx = flashcardsWithReviews.findIndex((f) => f.id === fc.id);
-    if (idx >= 0) {
-      setStudyIndex(idx);
-      setShowBack(false);
-      setStudyMode(true);
-    }
-  };
+  function toggleReveal(id: string) {
+    setRevealedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
-  const handleDeleteReview = async (reviewId: string) => {
+  async function handleRate(cardId: string, quality: number) {
     try {
-      await api.delete(`/flashcard-reviews/${reviewId}`);
-      toast.success("削除しました");
-      fetchData();
-    } catch {
-      toast.error("削除に失敗しました");
-    }
-  };
-
-  const recordReview = async (quality: number) => {
-    const card = flashcardsWithReviews[studyIndex];
-    if (!card) return;
-    try {
-      await api.post(`/flashcards/${card.id}/reviews`, {
+      await api.post(`/flashcards/${cardId}/reviews`, {
         quality,
         reviewed_at: new Date().toISOString(),
       });
     } catch { /* ignore */ }
-
-    if (studyIndex < flashcardsWithReviews.length - 1) {
-      setStudyIndex(studyIndex + 1);
-      setShowBack(false);
-    } else {
-      setStudyMode(false);
-      toast.success("Study complete!");
-      fetchData();
-    }
-  };
-
-  const startStudy = () => {
-    if (flashcardsWithReviews.length === 0) return;
-    setStudyIndex(0);
-    setShowBack(false);
-    setStudyMode(true);
-  };
+    setRevealedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(cardId);
+      return next;
+    });
+    fetchData();
+  }
 
   if (!currentProject) {
     return (
@@ -213,37 +255,7 @@ export default function FlashcardsPage() {
     );
   }
 
-  // Study mode UI
-  if (studyMode && flashcardsWithReviews[studyIndex]) {
-    const card = flashcardsWithReviews[studyIndex];
-    return (
-      <div className="p-4 md:p-6 flex flex-col items-center gap-6">
-        <div className="text-sm text-muted-foreground">
-          {studyIndex + 1} / {flashcardsWithReviews.length}
-        </div>
-        <div className="w-full max-w-lg border border-border rounded-lg p-6 min-h-[200px] flex flex-col justify-center">
-          <div className="text-center text-lg mb-4">{card.front}</div>
-          {showBack && (
-            <div className="text-center text-muted-foreground border-t border-border pt-4 mt-4">
-              {card.back}
-            </div>
-          )}
-        </div>
-        {!showBack ? (
-          <Button onClick={() => setShowBack(true)}>Show Answer</Button>
-        ) : (
-          <div className="flex gap-2">
-            {[1, 2, 3, 4, 5].map((q) => (
-              <Button key={q} variant={q <= 2 ? "destructive" : q >= 4 ? "default" : "secondary"} onClick={() => recordReview(q)}>
-                {q}
-              </Button>
-            ))}
-          </div>
-        )}
-        <Button variant="outline" onClick={() => { setStudyMode(false); fetchData(); }}>Exit</Button>
-      </div>
-    );
-  }
+  const now = new Date();
 
   return (
     <div className="p-4 md:p-6">
@@ -252,61 +264,170 @@ export default function FlashcardsPage() {
           <span className="text-muted-foreground"><Bookmark className="size-5" /></span>
           <h2 className="text-xl font-semibold">Flashcards</h2>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <span className="text-sm text-muted-foreground">{cards.length}枚</span>
           <ProjectSelector />
           <Button variant="outline" size="sm" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
-          {flashcardsWithReviews.length > 0 && (
-            <Button variant="secondary" size="sm" onClick={startStudy}>Study</Button>
-          )}
-          <Button size="sm" onClick={openCreate}><Plus className="h-4 w-4 mr-1" />New</Button>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading...</div>
-      ) : flashcardsWithReviews.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">No flashcards found</div>
+        <div className="text-center py-12 text-muted-foreground">読み込み中...</div>
       ) : (
-        <div className="space-y-4">
-          {flashcardsWithReviews.map((fc) => (
-            <FlashcardCard
-              key={fc.id}
-              flashcard={fc}
-              topics={topics}
-              onEdit={openEdit}
-              onAddReview={handleAddReview}
-              onDeleteReview={handleDeleteReview}
-            />
-          ))}
+        <div className="max-w-2xl mx-auto space-y-4">
+          {cards.map((card) => {
+            const info = cardRetention(card.reviews, now);
+            const revealed = revealedIds.has(card.id);
+            const topic = topics.find((t) => t.id === card.topicId);
+            return (
+              <FlipCard
+                key={card.id}
+                flipped={revealed}
+                front={
+                  <Card className="h-full flex flex-col py-4">
+                    <CardContent className="flex flex-col flex-1 gap-3">
+                      {/* Header: topic + edit/delete */}
+                      <div className="flex items-center gap-2 text-xs flex-wrap">
+                        {topic && (
+                          <Badge variant="outline" className="text-xs">{topic.name}</Badge>
+                        )}
+                        <div className="ml-auto flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditDialog(card)}
+                            title="編集"
+                            className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground transition-colors"
+                          >
+                            <Pencil className="size-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(card.id)}
+                            title="削除"
+                            className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-colors"
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Retention */}
+                      {info.reviewCount > 0 ? (
+                        <RetentionBarRaw retention={info.ret} elapsedDays={info.elapsedDays} />
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">未復習</span>
+                      )}
+
+                      {/* Front content */}
+                      <div className="flex-1 flex items-center">
+                        <div className="text-sm text-foreground leading-relaxed">
+                          <Markdown>{card.front}</Markdown>
+                        </div>
+                      </div>
+
+                      {/* Reveal button */}
+                      <button
+                        type="button"
+                        onClick={() => toggleReveal(card.id)}
+                        className="self-start inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                      >
+                        <Eye className="size-3.5" /> 裏面を表示
+                      </button>
+                    </CardContent>
+                  </Card>
+                }
+                back={
+                  <Card className="py-4">
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs flex-wrap">
+                        {topic && (
+                          <Badge variant="outline" className="text-xs">{topic.name}</Badge>
+                        )}
+                        <div className="ml-auto flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditDialog(card)}
+                            title="編集"
+                            className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground transition-colors"
+                          >
+                            <Pencil className="size-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border border-border bg-muted/30 p-3 text-sm text-foreground leading-relaxed">
+                        <Markdown>{card.back}</Markdown>
+                      </div>
+
+                      {/* Quality rating buttons */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {QUALITY_LABELS.map((q) => (
+                          <button
+                            key={q.value}
+                            type="button"
+                            onClick={() => handleRate(card.id, q.value)}
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-80 ${q.color}`}
+                          >
+                            {q.value}. {q.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleReveal(card.id)}
+                        className="inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                      >
+                        <EyeOff className="size-3.5" /> 表面に戻す
+                      </button>
+                    </CardContent>
+                  </Card>
+                }
+              />
+            );
+          })}
+          {cards.length === 0 && (
+            <p className="text-center text-muted-foreground py-8">カードがありません</p>
+          )}
         </div>
       )}
 
-      <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg" size="icon" onClick={openCreate}>
+      <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg" size="icon" onClick={openCreateDialog}>
         <Plus className="h-6 w-6" />
       </Button>
 
-      {/* Edit / Create Dialog */}
+      {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editItem ? "Flashcardを編集" : "新規Flashcard"}</DialogTitle>
+            <DialogTitle>{editItem ? "カードを編集" : "カードを作成"}</DialogTitle>
             <DialogDescription className="sr-only">{editItem ? "Edit flashcard" : "Create a new flashcard"}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Front (Question)</Label>
-              <Textarea value={front} onChange={(e) => setFront(e.target.value)} placeholder="Enter question" rows={3} />
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label>表面（質問）</Label>
+              <Textarea
+                placeholder="覚えたい内容・質問"
+                value={formFront}
+                onChange={(e) => setFormFront(e.target.value)}
+                rows={Math.max(3, formFront.split("\n").length + 1)}
+              />
             </div>
-            <div className="space-y-2">
-              <Label>Back (Answer)</Label>
-              <Textarea value={back} onChange={(e) => setBack(e.target.value)} placeholder="Enter answer" rows={3} />
+            <div className="grid gap-2">
+              <Label>裏面（答え）</Label>
+              <Textarea
+                placeholder="答え・解説"
+                value={formBack}
+                onChange={(e) => setFormBack(e.target.value)}
+                rows={Math.max(3, formBack.split("\n").length + 1)}
+              />
             </div>
-            <div className="space-y-2">
-              <Label>Topic</Label>
-              <Select value={topicId} onValueChange={setTopicId}>
+            <div className="grid gap-2">
+              <Label>トピック</Label>
+              <Select value={formTopicId} onValueChange={setFormTopicId}>
                 <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">None</SelectItem>
+                  <SelectItem value="__none__">なし</SelectItem>
                   {topics.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -314,12 +435,12 @@ export default function FlashcardsPage() {
           </div>
           <DialogFooter>
             {editItem && (
-              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive mr-auto" onClick={handleDelete}>
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive mr-auto" onClick={() => handleDelete(editItem.id)}>
                 削除
               </Button>
             )}
             <Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "保存中..." : editItem ? "更新" : "作成"}</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "保存中..." : editItem ? "保存" : "作成"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

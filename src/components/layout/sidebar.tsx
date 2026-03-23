@@ -7,16 +7,12 @@ import { SITE_NAME } from "@/lib/site";
 import {
   Clock,
   FileText,
-  FolderKanban,
   LayoutGrid,
   PanelLeftClose,
   PanelLeftOpen,
   PenLine,
-  Key,
   Bookmark,
-  Shield,
   Tag,
-  CircleDot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "./user-menu";
@@ -28,19 +24,16 @@ interface NavItem {
   href: string;
   label: string;
   icon: typeof PenLine;
+  dividerAfter?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { href: "/timeline", label: "Timeline", icon: Clock },
-  { href: "/problems", label: "Problems", icon: FileText },
-  { href: "/answers", label: "Answers", icon: PenLine },
   { href: "/flashcards", label: "Flashcards", icon: Bookmark },
+  { href: "/timeline", label: "Timeline", icon: Clock },
+  { href: "/answers", label: "Answers", icon: PenLine },
+  { href: "/problems", label: "Problems", icon: FileText },
+  { href: "/tags", label: "Tags", icon: Tag, dividerAfter: true },
   { href: "/masters", label: "Masters", icon: LayoutGrid },
-  { href: "/tags", label: "Tags", icon: Tag },
-  { href: "/statuses", label: "Statuses", icon: CircleDot },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/users", label: "Users", icon: Shield },
-  { href: "/api-keys", label: "API Keys", icon: Key },
 ];
 
 export function SidebarNav({
@@ -59,30 +52,32 @@ export function SidebarNav({
           {navItems.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={item.label}
-                onClick={onNavigate}
-                className={cn(
-                  "flex items-center rounded-md pl-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-sidebar-accent text-primary"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                )}
-              >
-                <item.icon className="size-4 shrink-0" />
-                <span
+              <div key={item.href}>
+                <Link
+                  href={item.href}
+                  title={item.label}
+                  onClick={onNavigate}
                   className={cn(
-                    "whitespace-nowrap transition-opacity duration-200",
-                    collapsed
-                      ? "opacity-0 w-0 overflow-hidden"
-                      : "opacity-100 ml-3",
+                    "flex items-center rounded-md pl-3 py-2 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-sidebar-accent text-primary"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                   )}
                 >
-                  {item.label}
-                </span>
-              </Link>
+                  <item.icon className="size-4 shrink-0" />
+                  <span
+                    className={cn(
+                      "whitespace-nowrap transition-opacity duration-200",
+                      collapsed
+                        ? "opacity-0 w-0 overflow-hidden"
+                        : "opacity-100 ml-3",
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </Link>
+                {item.dividerAfter && <div className="border-t border-sidebar-border/50" />}
+              </div>
             );
           })}
         </div>
