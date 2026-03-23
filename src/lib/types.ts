@@ -47,6 +47,8 @@ export interface Answer {
   date: string | null
   duration: string | null
   status: AnswerStatus | null
+  /** Status point value (for dynamic forgetting-curve computation) */
+  point?: number
   problem_id: string
   created_at: string
   updated_at: string

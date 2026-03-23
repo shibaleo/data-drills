@@ -144,7 +144,7 @@ export default function AnswersPage() {
                       </div>
                     </td>
                     <td className="py-2 px-3">
-                      {statusName && <StatusTag status={statusName as AnswerStatus} />}
+                      {statusName && <StatusTag status={statusName as AnswerStatus} opaque />}
                     </td>
                     <td className="py-2 px-3 font-mono text-xs text-muted-foreground">{fmtDuration(a.duration)}</td>
                     <td className="py-2 px-3">

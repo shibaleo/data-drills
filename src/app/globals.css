@@ -101,11 +101,31 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    color-scheme: dark;
+    scrollbar-color: var(--border) var(--background);
+  }
   body {
     background-color: var(--background);
     color: var(--foreground);
     min-height: 100dvh;
   }
+}
+
+/* Dark scrollbar (WebKit) */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
 }
 
 /* FlipCard animation */

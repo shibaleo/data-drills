@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Clock, Plus, RefreshCw } from "lucide-react";
+import { Clock, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { useAnswerForm, useEditAnswerForm } from "@/hooks/use-answer-form";
 import { ProjectSelector } from "@/components/shared/project-selector";
+import { Fab } from "@/components/shared/fab";
 import { ProblemCard, type ProblemWithAnswers } from "@/components/problem-card";
 import { ProblemEditDialog } from "@/components/problem-edit-dialog";
 import { AnswerDialog } from "@/components/answer-dialog";
@@ -78,10 +79,16 @@ export default function TimelinePage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editProblem, setEditProblem] = useState<Problem | null>(null);
 
-  // Build status ID → name map
+  // Build status ID → name/point maps
   const statusMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of statuses) m.set(s.id, s.name);
+    return m;
+  }, [statuses]);
+
+  const statusPointMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of statuses) m.set(s.id, s.point ?? 0);
     return m;
   }, [statuses]);
 
@@ -137,6 +144,7 @@ export default function TimelinePage() {
           date: a.date,
           duration: secondsToDuration(a.duration),
           status: (a.answerStatusId ? statusMap.get(a.answerStatusId) as AnswerStatus ?? null : null),
+          point: a.answerStatusId ? statusPointMap.get(a.answerStatusId) : undefined,
           problem_id: a.problemId,
           created_at: a.createdAt,
           updated_at: a.createdAt,
@@ -183,7 +191,7 @@ export default function TimelinePage() {
     } finally {
       setLoading(false);
     }
-  }, [currentProject, statusMap]);
+  }, [currentProject, statusMap, statusPointMap]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -234,7 +242,7 @@ export default function TimelinePage() {
       ) : problems.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No problems found</div>
       ) : (
-        <div className="space-y-4">
+        <div className="max-w-2xl mx-auto space-y-4">
           {problems.map((p) => (
             <ProblemCard
               key={p.id}
@@ -321,10 +329,7 @@ export default function TimelinePage() {
         onSave={editForm.save}
       />
 
-      {/* FAB to create answer */}
-      <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg" size="icon" onClick={() => answerForm.openBlank()}>
-        <Plus className="h-6 w-6" />
-      </Button>
+      <Fab onClick={() => answerForm.openBlank()} />
     </div>
   );
 }

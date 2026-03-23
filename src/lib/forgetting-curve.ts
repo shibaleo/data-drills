@@ -83,19 +83,21 @@ export function parseDurationSec(d: string | null): number | null {
 /**
  * Compute forgetting info for a problem given its answers (any order).
  * Returns null if the problem has no answers with dates.
+ * If `point` is provided on an answer, it is used directly as the quality value.
+ * Otherwise falls back to the hardcoded status→quality mapping.
  */
 export function computeForgettingInfo(
-  answers: { date: string | null; status: AnswerStatus | null; duration?: string | null }[],
+  answers: { date: string | null; status: AnswerStatus | null; point?: number; duration?: string | null }[],
   now: Date = new Date(),
 ): ForgettingInfo | null {
   // Sort chronologically
   const dated = answers
-    .filter((a): a is { date: string; status: AnswerStatus | null; duration?: string | null } => a.date !== null)
+    .filter((a): a is { date: string; status: AnswerStatus | null; point?: number; duration?: string | null } => a.date !== null)
     .sort((a, b) => a.date.localeCompare(b.date))
 
   if (dated.length === 0) return null
 
-  const qualities = dated.map((a) => statusToQuality(a.status))
+  const qualities = dated.map((a) => a.point ?? statusToQuality(a.status))
   const stability = computeStability(qualities)
   const elapsedDays = Math.max(0, jstDayDiff(toJSTDateString(now), dated[dated.length - 1].date))
   const ret = retention(elapsedDays, stability)

@@ -6,16 +6,22 @@ import { SITE_NAME } from "@/lib/site";
 import { Sidebar, SidebarNav } from "./sidebar";
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet";
 import { UserMenu } from "./user-menu";
+import { ScrollProvider, useScrollContext } from "@/lib/scroll-context";
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+function LayoutInner({ children }: { children: React.ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { scrollingDown } = useScrollContext();
   useEffect(() => setMounted(true), []);
 
   return (
     <div className="min-h-dvh flex flex-col md:h-dvh md:flex-row md:overflow-hidden">
       {/* Mobile header */}
-      <header className="sticky top-0 z-30 flex md:hidden h-14 shrink-0 items-center border-b border-sidebar-border bg-sidebar px-3 gap-3">
+      <header
+        className={`sticky top-0 z-30 flex md:hidden h-14 shrink-0 items-center border-b border-sidebar-border bg-sidebar px-3 gap-3 transition-transform duration-200 ${
+          scrollingDown ? "-translate-y-full" : "translate-y-0"
+        }`}
+      >
         {mounted ? (
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
@@ -50,5 +56,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 overflow-y-auto">{children}</main>
     </div>
+  );
+}
+
+export function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ScrollProvider>
+      <LayoutInner>{children}</LayoutInner>
+    </ScrollProvider>
   );
 }

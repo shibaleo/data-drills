@@ -15,6 +15,13 @@
       "when": 1774230938370,
       "tag": "0001_make-tag-and-status-independent",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774244979222,
+      "tag": "0002_tense_crusher_hogan",
+      "breakpoints": true
     }
   ]
 }

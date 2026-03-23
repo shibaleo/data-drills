@@ -1,15 +1,15 @@
 import type { AnswerStatus } from '@/lib/types'
+import { ColorBadge } from '@/components/shared/color-badge'
 
 const TAG_BASE = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium'
-const FALLBACK_COLOR = 'bg-muted text-muted-foreground'
 
-/* ── Status ── */
-const STATUS_COLORS: Record<AnswerStatus, string> = {
-  Yet:    'bg-red-500/20 text-red-400',
-  Repeat: 'bg-orange-500/20 text-orange-400',
-  Check:  'bg-amber-400/20 text-amber-300',
-  Recall: 'bg-green-500/20 text-green-400',
-  Done:   'bg-blue-500/20 text-blue-400',
+/* ── Status hex fallback (used when DB color is not available) ── */
+const STATUS_HEX: Record<AnswerStatus, string> = {
+  Yet:    '#EF4444',
+  Repeat: '#F97316',
+  Check:  '#EAB308',
+  Recall: '#22C55E',
+  Done:   '#3B82F6',
 }
 
 /** Opaque variant — colour-mixed onto --card so no bleed-through on timeline lines */
@@ -29,17 +29,19 @@ export const STATUS_DOT_COLORS: Record<AnswerStatus, string> = {
   Done:   'bg-blue-400',
 }
 
-export function StatusTag({ status, className, opaque }: { status: AnswerStatus; className?: string; opaque?: boolean }) {
-  const colors = opaque ? STATUS_COLORS_OPAQUE[status] : STATUS_COLORS[status]
-  return <span className={`${TAG_BASE} ${colors} ${className ?? ''}`}>{status}</span>
+/** Status badge using ColorBadge. Accepts optional hex color override from DB. */
+export function StatusTag({ status, color, className, opaque }: { status: AnswerStatus; color?: string | null; className?: string; opaque?: boolean }) {
+  if (opaque) {
+    const colors = STATUS_COLORS_OPAQUE[status]
+    return <span className={`${TAG_BASE} ${colors} ${className ?? ''}`}>{status}</span>
+  }
+  return <ColorBadge color={color ?? STATUS_HEX[status]} className={className}>{status}</ColorBadge>
 }
 
-/* ── Level (color from project) ── */
-export function LevelTag({ level, color }: { level: string; color?: string }) {
-  return <span className={`${TAG_BASE} ${color ?? FALLBACK_COLOR}`}>{level}</span>
-}
-
-/* ── Subject (color from project) ── */
-export function SubjectTag({ subject, color }: { subject: string; color?: string }) {
-  return <span className={`${TAG_BASE} ${color ?? FALLBACK_COLOR}`}>{subject}</span>
+/** Generic entity badge using ColorBadge (for subjects, levels, tags, topics, etc.) */
+export function EntityBadge({ name, color, className }: { name: string; color?: string | null; className?: string }) {
+  if (!color) {
+    return <span className={`${TAG_BASE} bg-muted text-muted-foreground ${className ?? ''}`}>{name}</span>
+  }
+  return <ColorBadge color={color} className={className}>{name}</ColorBadge>
 }

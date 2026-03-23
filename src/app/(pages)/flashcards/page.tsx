@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bookmark, Plus, Pencil, Trash2, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Layers, Pencil, Trash2, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,9 +18,12 @@ import { Badge } from "@/components/ui/badge";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { ProjectSelector } from "@/components/shared/project-selector";
+import { Fab } from "@/components/shared/fab";
+import { StatusTag } from "@/components/color-tags";
 import { RetentionBarRaw } from "@/components/retention-bar";
 import { Markdown } from "@/components/markdown";
 import { randomCode } from "@/lib/utils";
+import type { AnswerStatus } from "@/lib/types";
 import { computeStability, retention } from "@/lib/forgetting-curve";
 import { toJSTDateString, jstDayDiff } from "@/lib/date-utils";
 
@@ -84,16 +87,6 @@ function FlipCard({ flipped, front, back }: { flipped: boolean; front: React.Rea
   );
 }
 
-/* ── Quality labels ── */
-
-const QUALITY_LABELS: { value: number; label: string; color: string }[] = [
-  { value: 1, label: "全く覚えてない", color: "bg-red-500/20 text-red-400" },
-  { value: 2, label: "うっすら", color: "bg-orange-500/20 text-orange-400" },
-  { value: 3, label: "ヒントあれば", color: "bg-amber-400/20 text-amber-300" },
-  { value: 4, label: "ほぼ覚えてる", color: "bg-green-500/20 text-green-400" },
-  { value: 5, label: "完璧", color: "bg-blue-500/20 text-blue-400" },
-];
-
 /* ── Compute card retention ── */
 
 function cardRetention(reviews: FlashcardReviewRow[], now: Date) {
@@ -109,7 +102,7 @@ function cardRetention(reviews: FlashcardReviewRow[], now: Date) {
 /* ── Page ── */
 
 export default function FlashcardsPage() {
-  const { currentProject } = useProject();
+  const { currentProject, statuses } = useProject();
   const [cards, setCards] = useState<FlashcardWithReviews[]>([]);
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -261,7 +254,7 @@ export default function FlashcardsPage() {
     <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
-          <span className="text-muted-foreground"><Bookmark className="size-5" /></span>
+          <span className="text-muted-foreground"><Layers className="size-5" /></span>
           <h2 className="text-xl font-semibold">Flashcards</h2>
         </div>
         <div className="flex gap-2 items-center">
@@ -311,7 +304,6 @@ export default function FlashcardsPage() {
                         </div>
                       </div>
 
-                      {/* Retention */}
                       {info.reviewCount > 0 ? (
                         <RetentionBarRaw retention={info.ret} elapsedDays={info.elapsedDays} />
                       ) : (
@@ -359,16 +351,15 @@ export default function FlashcardsPage() {
                         <Markdown>{card.back}</Markdown>
                       </div>
 
-                      {/* Quality rating buttons */}
                       <div className="flex flex-wrap gap-1.5">
-                        {QUALITY_LABELS.map((q) => (
+                        {statuses.map((s) => (
                           <button
-                            key={q.value}
+                            key={s.id}
                             type="button"
-                            onClick={() => handleRate(card.id, q.value)}
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-opacity hover:opacity-80 ${q.color}`}
+                            onClick={() => handleRate(card.id, s.point ?? 0)}
+                            className="transition-opacity hover:opacity-80"
                           >
-                            {q.value}. {q.label}
+                            <StatusTag status={s.name as AnswerStatus} opaque />
                           </button>
                         ))}
                       </div>
@@ -392,9 +383,7 @@ export default function FlashcardsPage() {
         </div>
       )}
 
-      <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg" size="icon" onClick={openCreateDialog}>
-        <Plus className="h-6 w-6" />
-      </Button>
+      <Fab onClick={openCreateDialog} />
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

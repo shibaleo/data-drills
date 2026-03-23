@@ -13,6 +13,7 @@ interface LookupItem {
   id: string;
   name: string;
   color?: string | null;
+  point?: number;
 }
 
 interface ProjectContextValue {

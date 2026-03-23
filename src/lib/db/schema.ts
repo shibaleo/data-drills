@@ -31,6 +31,8 @@ export const project = pgTable("project", {
   id: id(),
   code: code(),
   name: name(),
+  color: text("color"),
+  sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps(),
 }, (t) => [
   uniqueIndex("project_code_key").on(t.code),
@@ -108,6 +110,7 @@ export const answerStatus = pgTable("answer_status", {
   code: code(),
   name: name(),
   color: text("color"),
+  point: integer("point").notNull().default(0),
   sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps(),
 }, (t) => [

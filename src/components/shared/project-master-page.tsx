@@ -1,6 +1,5 @@
 "use client";
 
-import { type ReactNode } from "react";
 import { useProject } from "@/hooks/use-project";
 import { ProjectSelector } from "./project-selector";
 import { MasterPage, type MasterPageConfig } from "./master-page";
@@ -25,11 +24,9 @@ export function ProjectMasterPage({ makeConfig }: ProjectMasterPageProps) {
   const config = makeConfig(currentProject.id);
 
   return (
-    <div>
-      <div className="px-4 md:px-6 pt-4 md:pt-6">
-        <ProjectSelector />
-      </div>
-      <MasterPage key={currentProject.id} config={config} />
-    </div>
+    <MasterPage
+      key={currentProject.id}
+      config={{ ...config, headerExtra: <ProjectSelector /> }}
+    />
   );
 }

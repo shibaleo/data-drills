@@ -1,8 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { Plus, Trash2, RefreshCw } from "lucide-react";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { Trash2, RefreshCw, GripVertical } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { randomCode } from "@/lib/utils";
+import { Fab } from "@/components/shared/fab";
 
 // ── Types ──
 
@@ -33,7 +51,10 @@ export interface MasterPageConfig {
   endpoint: string;
   entityName: string;
   hasColor?: boolean;
+  hasPoint?: boolean;
   icon?: ReactNode;
+  /** Extra ReactNode rendered in the header actions area (e.g. ProjectSelector) */
+  headerExtra?: ReactNode;
   /** Extra fields to include in the POST body when creating */
   extraCreatePayload?: Record<string, unknown>;
 }
@@ -67,6 +88,7 @@ export function MasterItemDialog({
   const [name, setName] = useState("");
   const [color, setColor] = useState<string | null>(null);
   const [hexInput, setHexInput] = useState("");
+  const [point, setPoint] = useState(0);
 
   useEffect(() => {
     if (!open) { setError(null); return; }
@@ -76,11 +98,13 @@ export function MasterItemDialog({
       const c = (item.color as string | null) ?? null;
       setColor(c);
       setHexInput(c ?? "");
+      setPoint((item.point as number) ?? 0);
     } else {
       setCode("");
       setName("");
       setColor(null);
       setHexInput("");
+      setPoint(0);
     }
   }, [open, item]);
 
@@ -91,6 +115,7 @@ export function MasterItemDialog({
     try {
       const payload: Record<string, unknown> = { code: code.trim() || randomCode(), name: name.trim() };
       if (config.hasColor) payload.color = color;
+      if (config.hasPoint) payload.point = point;
       if (isCreate) {
         await api.post(config.endpoint, { ...payload, ...config.extraCreatePayload });
       } else {
@@ -161,6 +186,18 @@ export function MasterItemDialog({
             </div>
           )}
 
+          {config.hasPoint && (
+            <div className="space-y-2">
+              <Label>Point</Label>
+              <Input
+                type="number"
+                value={point}
+                onChange={(e) => setPoint(Number(e.target.value))}
+                className="w-24 font-mono"
+              />
+            </div>
+          )}
+
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
@@ -178,6 +215,57 @@ export function MasterItemDialog({
   );
 }
 
+// ── Sortable row ──
+
+function SortableRow({
+  item,
+  hasColor,
+  onClick,
+}: {
+  item: MasterRow;
+  hasColor?: boolean;
+  onClick: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const didDrag = useRef(false);
+
+  useEffect(() => {
+    if (isDragging) didDrag.current = true;
+  }, [isDragging]);
+
+  const handleClick = () => {
+    if (didDrag.current) { didDrag.current = false; return; }
+    onClick();
+  };
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 px-3 py-2 text-sm border-b border-border/30 transition-colors hover:bg-accent/20 cursor-grab active:cursor-grabbing touch-none"
+      onClick={handleClick}
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical className="size-3.5 text-muted-foreground/30 shrink-0" />
+      {hasColor && item.color && (
+        <span
+          className="inline-block size-2.5 rounded-full shrink-0"
+          style={{ backgroundColor: item.color as string }}
+        />
+      )}
+      <span className="font-mono text-xs text-muted-foreground">{item.code}</span>
+      <span className="truncate">{item.name}</span>
+    </div>
+  );
+}
+
 // ── Full MasterPage ──
 
 export function MasterPage({ config }: { config: MasterPageConfig }) {
@@ -186,6 +274,11 @@ export function MasterPage({ config }: { config: MasterPageConfig }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogItem, setDialogItem] = useState<MasterRow | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<MasterRow | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -203,6 +296,22 @@ export function MasterPage({ config }: { config: MasterPageConfig }) {
 
   const handleCreate = () => { setDialogItem(null); setDialogOpen(true); };
   const handleRowClick = (item: MasterRow) => { setDialogItem(item); setDialogOpen(true); };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(items, oldIndex, newIndex);
+    setItems(reordered);
+    try {
+      await api.patch(`${config.endpoint}/reorder`, { ids: reordered.map((i) => i.id) });
+    } catch {
+      toast.error("Failed to save order");
+      setItems(items);
+    }
+  };
 
   const executeDelete = async () => {
     if (!confirmDelete) return;
@@ -231,8 +340,8 @@ export function MasterPage({ config }: { config: MasterPageConfig }) {
           <h2 className="text-xl font-semibold">{config.title}</h2>
         </div>
         <div className="flex gap-2">
+          {config.headerExtra}
           <Button variant="outline" size="sm" onClick={fetchItems}><RefreshCw className="h-4 w-4" /></Button>
-          <Button size="sm" onClick={handleCreate}><Plus className="h-4 w-4 mr-1" />New</Button>
         </div>
       </div>
 
@@ -242,36 +351,22 @@ export function MasterPage({ config }: { config: MasterPageConfig }) {
         <div className="text-center py-12 text-muted-foreground">No {config.entityName} found</div>
       ) : (
         <div className="border border-border rounded-md overflow-hidden">
-          <table className="w-full text-sm">
-            <tbody>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
               {items.map((item) => (
-                <tr
+                <SortableRow
                   key={item.id}
-                  className="border-b border-border/30 transition-colors cursor-pointer hover:bg-accent/20"
+                  item={item}
+                  hasColor={config.hasColor}
                   onClick={() => handleRowClick(item)}
-                >
-                  <td className="py-2 px-3">
-                    <div className="flex items-center">
-                      {config.hasColor && item.color && (
-                        <span
-                          className="inline-block w-2.5 h-2.5 rounded-full mr-2 shrink-0"
-                          style={{ backgroundColor: item.color as string }}
-                        />
-                      )}
-                      <span className="font-mono text-xs text-muted-foreground mr-2">{item.code}</span>
-                      <span>{item.name}</span>
-                    </div>
-                  </td>
-                </tr>
+                />
               ))}
-            </tbody>
-          </table>
+            </SortableContext>
+          </DndContext>
         </div>
       )}
 
-      <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg" size="icon" onClick={handleCreate}>
-        <Plus className="h-6 w-6" />
-      </Button>
+      <Fab onClick={handleCreate} />
 
       <MasterItemDialog
         open={dialogOpen}
