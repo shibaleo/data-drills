@@ -160,53 +160,45 @@
 }
 
 /* =============================================================================
-   Milkdown editor dark-theme overrides
+   CodeMirror Live Preview overrides
    ============================================================================= */
 
-.milkdown-editor .milkdown {
+.cm-wrapper .cm-editor {
   background: transparent;
-  color: var(--foreground);
-  font-family: system-ui, sans-serif;
-}
-
-.milkdown-editor .milkdown .editor {
   outline: none;
-  padding: 0.75rem;
-  min-height: 250px;
 }
 
-.milkdown-editor .milkdown h1 { font-size: 1.25rem; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
-.milkdown-editor .milkdown h2 { font-size: 1.125rem; font-weight: 700; margin-top: 0.75rem; margin-bottom: 0.5rem; }
-.milkdown-editor .milkdown h3 { font-size: 1rem; font-weight: 600; margin-top: 0.5rem; margin-bottom: 0.25rem; }
-
-.milkdown-editor .milkdown p { margin-bottom: 0.5rem; }
-
-.milkdown-editor .milkdown blockquote {
-  border-left: 2px solid var(--primary);
-  padding-left: 0.75rem;
-  color: var(--muted-foreground);
-  font-style: italic;
+.cm-wrapper .cm-editor.cm-focused {
+  outline: none;
 }
 
-.milkdown-editor .milkdown code {
+/* Table widget (codemirror-live-markdown tableField) */
+.cm-table-widget table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.cm-table-widget th,
+.cm-table-widget td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.cm-table-widget th {
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+  font-weight: 500;
+}
+
+.cm-table-widget td {
+  background: transparent;
+}
+
+.cm-table-widget code {
   background: var(--muted);
-  border-radius: 0.25rem;
-  padding: 0.125rem 0.25rem;
-  font-size: 0.75rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
 }
 
-.milkdown-editor .milkdown .katex-display { margin: 0.75rem 0; }
-
-/* Crepe toolbar & UI overrides for dark theme */
-.milkdown-editor [data-milkdown-crepe] {
-  --crepe-color-background: var(--background);
-  --crepe-color-surface: var(--card);
-  --crepe-color-on-surface: var(--foreground);
-  --crepe-color-primary: var(--primary);
-  --crepe-color-outline: var(--border);
-  --crepe-color-on-background: var(--foreground);
-}
-
-.milkdown-editor .milkdown .crepe-placeholder::before {
-  color: #71717a !important;
-}

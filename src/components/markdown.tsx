@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
@@ -8,7 +9,7 @@ import "katex/dist/katex.min.css";
 export function Markdown({ children }: { children: string }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkMath]}
+      remarkPlugins={[remarkGfm, remarkMath]}
       rehypePlugins={[rehypeKatex]}
       components={{
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -26,6 +27,20 @@ export function Markdown({ children }: { children: string }) {
           <blockquote className="border-l-2 border-primary/50 pl-3 my-2 text-muted-foreground italic">
             {children}
           </blockquote>
+        ),
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2">
+            <table className="w-full border-collapse text-sm">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="border-b border-border bg-muted/50">{children}</thead>
+        ),
+        th: ({ children }) => (
+          <th className="px-3 py-1.5 text-left font-semibold">{children}</th>
+        ),
+        td: ({ children }) => (
+          <td className="px-3 py-1.5 border-t border-border">{children}</td>
         ),
       }}
     >

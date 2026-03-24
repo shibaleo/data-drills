@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { usePageTitle } from "@/lib/page-context";
-import { MilkdownEditor } from "@/components/milkdown-editor";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import { cn } from "@/lib/utils";
 
 /* ── Types ── */
@@ -295,11 +295,13 @@ export default function NotesPage() {
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              <MilkdownEditor
-                key={selectedNote.id}
-                defaultValue={selectedNote.content}
-                onChange={handleContentChange}
-              />
+              <div className="mx-auto max-w-3xl">
+                <MarkdownEditor
+                  key={selectedNote.id}
+                  defaultValue={selectedNote.content}
+                  onChange={handleContentChange}
+                />
+              </div>
             </div>
           </>
         )}
