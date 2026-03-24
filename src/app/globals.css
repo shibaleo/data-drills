@@ -158,3 +158,55 @@
 .flip-back {
   transform: rotateY(180deg);
 }
+
+/* =============================================================================
+   Milkdown editor dark-theme overrides
+   ============================================================================= */
+
+.milkdown-editor .milkdown {
+  background: transparent;
+  color: var(--foreground);
+  font-family: system-ui, sans-serif;
+}
+
+.milkdown-editor .milkdown .editor {
+  outline: none;
+  padding: 0.75rem;
+  min-height: 250px;
+}
+
+.milkdown-editor .milkdown h1 { font-size: 1.25rem; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
+.milkdown-editor .milkdown h2 { font-size: 1.125rem; font-weight: 700; margin-top: 0.75rem; margin-bottom: 0.5rem; }
+.milkdown-editor .milkdown h3 { font-size: 1rem; font-weight: 600; margin-top: 0.5rem; margin-bottom: 0.25rem; }
+
+.milkdown-editor .milkdown p { margin-bottom: 0.5rem; }
+
+.milkdown-editor .milkdown blockquote {
+  border-left: 2px solid var(--primary);
+  padding-left: 0.75rem;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.milkdown-editor .milkdown code {
+  background: var(--muted);
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  font-size: 0.75rem;
+}
+
+.milkdown-editor .milkdown .katex-display { margin: 0.75rem 0; }
+
+/* Crepe toolbar & UI overrides for dark theme */
+.milkdown-editor [data-milkdown-crepe] {
+  --crepe-color-background: var(--background);
+  --crepe-color-surface: var(--card);
+  --crepe-color-on-surface: var(--foreground);
+  --crepe-color-primary: var(--primary);
+  --crepe-color-outline: var(--border);
+  --crepe-color-on-background: var(--foreground);
+}
+
+.milkdown-editor .milkdown .crepe-placeholder::before {
+  color: #71717a !important;
+}

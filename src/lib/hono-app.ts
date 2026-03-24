@@ -17,6 +17,7 @@ import statuses from "@/routes/statuses";
 import tags from "@/routes/tags";
 import reviewTags from "@/routes/review-tags";
 import problemFiles from "@/routes/problem-files";
+import notes from "@/routes/notes";
 
 const app = new Hono<Env>().basePath("/api/v1");
 
@@ -57,6 +58,7 @@ app.route("/statuses", statuses);
 app.route("/tags", tags);
 app.route("/review-tags", reviewTags);
 app.route("/problem-files", problemFiles);
+app.route("/notes", notes);
 
 // /me endpoint — return authenticated user info
 app.get("/me", (c) => {

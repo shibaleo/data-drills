@@ -244,7 +244,44 @@ export const flashcardReview = pgTable("flashcard_review", {
 });
 
 // =============================================================================
-// 16. User
+// 16. Note
+// =============================================================================
+
+export const note = pgTable("note", {
+  id: id(),
+  projectId: uuid("project_id").notNull().references(() => project.id, { onDelete: "cascade" }),
+  topicId: uuid("topic_id").references(() => topic.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  content: text("content").notNull().default(""),
+  pinned: boolean("pinned").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...timestamps(),
+});
+
+// =============================================================================
+// 17. NoteTag (M:N)
+// =============================================================================
+
+export const noteTag = pgTable("note_tag", {
+  noteId: uuid("note_id").notNull().references(() => note.id, { onDelete: "cascade" }),
+  tagId: uuid("tag_id").notNull().references(() => tag.id, { onDelete: "cascade" }),
+}, (t) => [
+  primaryKey({ columns: [t.noteId, t.tagId] }),
+]);
+
+// =============================================================================
+// 18. NoteProblem (M:N)
+// =============================================================================
+
+export const noteProblem = pgTable("note_problem", {
+  noteId: uuid("note_id").notNull().references(() => note.id, { onDelete: "cascade" }),
+  problemId: uuid("problem_id").notNull().references(() => problem.id, { onDelete: "cascade" }),
+}, (t) => [
+  primaryKey({ columns: [t.noteId, t.problemId] }),
+]);
+
+// =============================================================================
+// 19. User
 // =============================================================================
 
 export const user = pgTable("user", {
@@ -259,7 +296,7 @@ export const user = pgTable("user", {
 ]);
 
 // =============================================================================
-// 17. UserCredential
+// 20. UserCredential
 // =============================================================================
 
 export const userCredential = pgTable("user_credential", {
@@ -269,7 +306,7 @@ export const userCredential = pgTable("user_credential", {
 });
 
 // =============================================================================
-// 18. ApiKey
+// 21. ApiKey
 // =============================================================================
 
 export const apiKey = pgTable("api_key", {
@@ -283,7 +320,7 @@ export const apiKey = pgTable("api_key", {
 });
 
 // =============================================================================
-// 19. OAuthToken
+// 22. OAuthToken
 // =============================================================================
 
 export const oauthToken = pgTable("oauth_token", {
@@ -296,7 +333,7 @@ export const oauthToken = pgTable("oauth_token", {
 });
 
 // =============================================================================
-// 20. FilterPref
+// 23. FilterPref
 // =============================================================================
 
 export const filterPref = pgTable("filter_pref", {

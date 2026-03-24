@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   PenLine,
+  StickyNote,
   TableProperties,
   Tag,
 } from "lucide-react";
@@ -30,6 +31,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/flashcards", label: "Flashcards", icon: Layers },
+  { href: "/notes", label: "Notes", icon: StickyNote },
   { href: "/timeline", label: "Timeline", icon: Clock },
   { href: "/answers", label: "Answers", icon: PenLine },
   { href: "/problems", label: "Problems", icon: TableProperties },
