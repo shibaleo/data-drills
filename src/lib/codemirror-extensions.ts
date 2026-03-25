@@ -117,10 +117,10 @@ export const tableMarkdownPlugin = ViewPlugin.fromClass(
 
 /* ── Bullet plugin: ListMark (-, *, +) → • ──
  *
- * livePreviewPlugin が ListMark を非表示にする (cm-formatting-block)。
- * このプラグインは非表示時に • ウィジェットを追加するだけ。
- * カーソルが触れると livePreviewPlugin が raw を表示し、
- * このプラグインは • を除去する。
+ * livePreviewPlugin が ListMark を cm-formatting-block (fontSize: 0.01em) で縮小する。
+ * このプラグインは非アクティブ行の ListMark を Decoration.replace で
+ * 完全に「•」ウィジェットに置き換える。
+ * カーソルが行に触れると replace を除去し、livePreviewPlugin が raw を表示する。
  */
 
 class BulletWidget extends WidgetType {
@@ -135,7 +135,7 @@ class BulletWidget extends WidgetType {
   }
 }
 
-const bulletDeco = Decoration.widget({ widget: new BulletWidget(), side: -1 });
+const bulletReplace = Decoration.replace({ widget: new BulletWidget() });
 
 export const bulletPlugin = ViewPlugin.fromClass(
   class {
@@ -174,7 +174,8 @@ export const bulletPlugin = ViewPlugin.fromClass(
           // アクティブ行ならスキップ（livePreviewPlugin が raw を表示する）
           const line = state.doc.lineAt(node.from);
           if (activeLines.has(line.number)) return;
-          builder.add(node.from, node.from, bulletDeco);
+          // ListMark テキスト (「-」等) を「•」ウィジェットで完全に置換
+          builder.add(node.from, node.to, bulletReplace);
         },
       });
       return builder.finish();
