@@ -57,7 +57,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
       {/* Desktop sidebar */}
       <Sidebar />
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto flex flex-col">
         <div className="hidden md:flex items-center justify-end gap-2 px-4 pt-3 pb-1">
           {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
           <FilterPopover />
