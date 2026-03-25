@@ -59,9 +59,12 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
       <Sidebar />
 
       <main className="flex-1 overflow-y-auto flex flex-col">
-        <div className={`hidden md:flex items-center gap-2 px-4 pt-3 pb-1 transition-all duration-200 overflow-hidden ${
-          scrollingDown ? "max-h-0 pt-0 pb-0 opacity-0" : "max-h-16 opacity-100"
+        <div className={`hidden md:flex items-center gap-2 px-4 min-h-12 transition-all duration-200 overflow-hidden ${
+          scrollingDown ? "max-h-0 min-h-0 opacity-0" : "max-h-16 opacity-100"
         }`}>
+          {title && !headerSlot && (
+            <h1 className="text-lg font-semibold truncate">{title}</h1>
+          )}
           {headerSlot && <div className="flex-1 min-w-0">{headerSlot}</div>}
           {!headerSlot && <div className="flex-1" />}
           {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}

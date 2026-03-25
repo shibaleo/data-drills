@@ -1,5 +1,5 @@
 /**
- * Migration: LD 税理士 → DD 税理士 のみ
+ * Migration: LD → DD (税理士 + 公認会計士)
  *
  * - 既存の DD subjects/levels は名前でマッピング（新規作成しない）
  * - LD の subject_id/level_id を DD の ID に変換して problem に紐づけ
@@ -18,9 +18,11 @@ const DD_BASE = process.env.NEXT_PUBLIC_BASE_URL ?? "http://127.0.0.1:3000";
 const DD_API_KEY = process.env.ADMIN_API_KEY;
 const DRY_RUN = !process.argv.includes("--run");
 
-// ── 固定マッピング: 税理士のみ ──
-const LD_PROJECT_ID = "d80f8fc5-01ea-473d-b16e-8b0c6053098c";
-const DD_PROJECT_ID = "639048c0-db94-4bb4-8be3-68e652d40e4e";
+// ── プロジェクトマッピング ──
+const PROJECT_MAP = [
+  { ldId: "d80f8fc5-01ea-473d-b16e-8b0c6053098c", ddId: "639048c0-db94-4bb4-8be3-68e652d40e4e", name: "税理士" },
+  { ldId: "db8494bd-9d43-41ad-897f-147167692753", ddId: "d57b60dc-a95e-406e-94a4-06ac70024a98", name: "公認会計士" },
+];
 
 const ldDb = postgres(LD_DB_URL, {
   max: 1, idle_timeout: 10, connect_timeout: 15,
@@ -78,27 +80,21 @@ async function post(path, body, label) {
   }
 }
 
-async function main() {
-  console.log(`=== LD→DD 税理士 ${DRY_RUN ? "(DRY RUN)" : "(EXECUTING)"} ===\n`);
-
-  await ldDb`SELECT 1`;
-  console.log("LD DB: OK");
-  await api("GET", "/health");
-  console.log("DD API: OK\n");
+async function migrateProject(LD_PROJECT_ID, DD_PROJECT_ID, projectName) {
+  console.log(`\n${"=".repeat(60)}`);
+  console.log(`  ${projectName} (LD: ${LD_PROJECT_ID.slice(0,8)}… → DD: ${DD_PROJECT_ID.slice(0,8)}…)`);
+  console.log(`${"=".repeat(60)}\n`);
 
   // ── Step 1: Build subject/level name→ID mapping ──
   console.log("── Building subject/level mapping ──");
 
-  // Get LD subjects & levels
   const ldSubjects = await ldDb`SELECT * FROM learning.project_subjects WHERE project_id = ${LD_PROJECT_ID}`;
   const ldLevels = await ldDb`SELECT * FROM learning.project_levels WHERE project_id = ${LD_PROJECT_ID}`;
 
-  // Get DD subjects & levels
   const ddSubjects = (await api("GET", `/projects/${DD_PROJECT_ID}/subjects?limit=100`)).data;
   const ddLevels = (await api("GET", `/projects/${DD_PROJECT_ID}/levels?limit=100`)).data;
 
-  // Map LD ID → DD ID by name
-  const subjectIdMap = new Map(); // LD subject ID → DD subject ID
+  const subjectIdMap = new Map();
   for (const ld of ldSubjects) {
     const dd = ddSubjects.find((d) => d.name === ld.name);
     if (dd) {
@@ -109,7 +105,7 @@ async function main() {
     }
   }
 
-  const levelIdMap = new Map(); // LD level ID → DD level ID
+  const levelIdMap = new Map();
   for (const ld of ldLevels) {
     const dd = ddLevels.find((d) => d.name === ld.name);
     if (dd) {
@@ -142,7 +138,6 @@ async function main() {
         stats.created++;
         console.log(`  ✓ problem ${r.code} (${r.name ?? "no name"})`);
       } catch {
-        // Already exists → update name/checkpoint
         try {
           await api("PUT", `/problems/${r.id}`, { name: r.name, checkpoint: r.checkpoint });
           stats.skipped++;
@@ -171,9 +166,8 @@ async function main() {
   const flashcards = await ldDb`SELECT * FROM learning.flashcards WHERE project_id = ${LD_PROJECT_ID} ORDER BY created_at`;
   console.log(`\n── Flashcards (${flashcards.length}) ──`);
 
-  // Topics: check existing DD topics first, create only missing ones
   const existingTopics = (await api("GET", `/projects/${DD_PROJECT_ID}/topics?limit=500`)).data;
-  const topicMap = new Map(); // topic name → DD topic ID
+  const topicMap = new Map();
   for (const t of existingTopics) {
     topicMap.set(t.name, t.id);
   }
@@ -187,9 +181,8 @@ async function main() {
     }
   }
 
-  // Tags: check existing DD tags first, create only missing ones
   const existingTags = (await api("GET", `/tags?limit=500`)).data;
-  const tagMap = new Map(); // tag name → DD tag ID
+  const tagMap = new Map();
   for (const t of existingTags) {
     tagMap.set(t.name, t.id);
   }
@@ -207,7 +200,6 @@ async function main() {
     }
   }
 
-  // Create flashcards
   for (const r of flashcards) {
     const topicId = r.topic?.trim() ? topicMap.get(r.topic.trim()) ?? null : null;
     await post("/flashcards", {
@@ -223,7 +215,6 @@ async function main() {
     }
   }
 
-  // FC-Problem links
   const fcProblems = await ldDb`
     SELECT fp.* FROM learning.flashcard_problems fp
     JOIN learning.flashcards f ON fp.flashcard_id = f.id
@@ -235,7 +226,6 @@ async function main() {
     }
   }
 
-  // FC Reviews
   const fcReviews = await ldDb`
     SELECT fr.* FROM learning.flashcard_reviews fr
     JOIN learning.flashcards f ON fr.flashcard_id = f.id
@@ -250,9 +240,8 @@ async function main() {
   }
 
   // ── Step 5: Answers ──
-  // Map LD status name → DD answer_status ID
   const ddStatuses = (await api("GET", "/statuses?limit=100")).data;
-  const statusMap = new Map(); // LD status name → DD answer_status ID
+  const statusMap = new Map();
   for (const s of ddStatuses) {
     statusMap.set(s.name, s.id);
   }
@@ -269,10 +258,8 @@ async function main() {
   console.log(`\n── Answers (${ldAnswers.length}) ──`);
 
   for (const a of ldAnswers) {
-    // Convert LD date (timestamp) → DD date (YYYY-MM-DD)
     const dateStr = a.date ? new Date(a.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
 
-    // Convert LD duration (interval string "HH:MM:SS") → DD duration (integer seconds)
     let durationSeconds = null;
     if (a.duration) {
       const dur = String(a.duration);
@@ -285,7 +272,6 @@ async function main() {
       }
     }
 
-    // Map status
     const answerStatusId = a.status ? statusMap.get(a.status) ?? null : null;
 
     await post("/answers", {
@@ -298,7 +284,6 @@ async function main() {
   }
 
   // ── Step 6: Reviews + Review Tags ──
-  // First, ensure tags exist for all review_types
   const ldReviews = await ldDb`
     SELECT r.* FROM learning.reviews r
     JOIN learning.answers a ON r.answer_id = a.id
@@ -307,14 +292,12 @@ async function main() {
     ORDER BY r.created_at`;
   console.log(`\n── Reviews (${ldReviews.length}) ──`);
 
-  // Refresh tag map (may have been updated by flashcard migration)
   const latestTags = (await api("GET", "/tags?limit=500")).data;
-  const reviewTagMap = new Map(); // tag name → DD tag ID
+  const reviewTagMap = new Map();
   for (const t of latestTags) {
     reviewTagMap.set(t.name, t.id);
   }
 
-  // Collect unique review_types that need tags
   const neededTypes = new Set();
   for (const r of ldReviews) {
     if (r.review_type?.trim()) neededTypes.add(r.review_type.trim());
@@ -327,7 +310,6 @@ async function main() {
     }
   }
 
-  // Create reviews and link tags
   for (const r of ldReviews) {
     await post("/reviews", {
       id: r.id,
@@ -335,7 +317,6 @@ async function main() {
       content: r.content ?? null,
     }, `review ${(r.content ?? "").slice(0, 40)}`);
 
-    // Link review_type as tag
     if (r.review_type?.trim()) {
       const tagId = reviewTagMap.get(r.review_type.trim());
       if (tagId) {
@@ -343,9 +324,23 @@ async function main() {
       }
     }
   }
+}
 
-  console.log(`\n=== Done ===`);
-  console.log(`Created: ${stats.created} | Skipped: ${stats.skipped} | Errors: ${stats.errors}`);
+async function main() {
+  console.log(`=== LD→DD Migration ${DRY_RUN ? "(DRY RUN)" : "(EXECUTING)"} ===\n`);
+
+  await ldDb`SELECT 1`;
+  console.log("LD DB: OK");
+  await api("GET", "/health");
+  console.log("DD API: OK");
+
+  for (const proj of PROJECT_MAP) {
+    await migrateProject(proj.ldId, proj.ddId, proj.name);
+  }
+
+  console.log(`\n${"=".repeat(60)}`);
+  console.log(`  TOTAL: Created: ${stats.created} | Skipped: ${stats.skipped} | Errors: ${stats.errors}`);
+  console.log(`${"=".repeat(60)}`);
   await ldDb.end();
 }
 
