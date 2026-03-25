@@ -179,7 +179,7 @@ export function ProblemCard({
                     {i > 0 && <div className="absolute left-[-1px] -translate-x-1/2 top-0 h-[12px] w-0.5 bg-border" />}
                     <div className="absolute left-[-1px] -translate-x-1/2 top-[12px] bottom-0 w-0.5 bg-border" />
                     <div className="absolute left-[-1px] -translate-x-1/2 top-[12px] -translate-y-1/2 whitespace-nowrap">
-                      {a.status ? <StatusTag status={a.status} opaque /> : <span className="inline-block size-2 rounded-full bg-foreground/40" />}
+                      {a.status ? <StatusTag status={a.status} color={lookup.statusColor(a.status)} opaque /> : <span className="inline-block size-2 rounded-full bg-foreground/40" />}
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-foreground/60">{a.date ? toJSTDate(a.date) : '-'}</span>

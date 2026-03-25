@@ -43,13 +43,15 @@ export function useLookup() {
   const ctx = useContext(ProjectContext);
   const subjects = ctx?.subjects ?? [];
   const levels = ctx?.levels ?? [];
+  const statuses = ctx?.statuses ?? [];
 
   function levelName(id: string) { return levels.find((l) => l.id === id)?.name ?? ''; }
   function levelColor(id: string) { return levels.find((l) => l.id === id)?.color ?? ''; }
   function subjectName(id: string) { return subjects.find((s) => s.id === id)?.name ?? ''; }
   function subjectColor(id: string) { return subjects.find((s) => s.id === id)?.color ?? ''; }
+  function statusColor(name: string) { return statuses.find((s) => s.name === name)?.color ?? null; }
 
-  return { levelName, levelColor, subjectName, subjectColor };
+  return { levelName, levelColor, subjectName, subjectColor, statusColor };
 }
 
 const STORAGE_KEY = "dd_current_project";

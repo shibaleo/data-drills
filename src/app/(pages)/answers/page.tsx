@@ -44,8 +44,8 @@ export default function AnswersPage() {
   const [loading, setLoading] = useState(true);
 
   const statusMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of statuses) m.set(s.id, s.name);
+    const m = new Map<string, { name: string; color: string | null }>();
+    for (const s of statuses) m.set(s.id, { name: s.name, color: s.color ?? null });
     return m;
   }, [statuses]);
 
@@ -126,7 +126,7 @@ export default function AnswersPage() {
             <tbody>
               {filteredAnswers.map((a) => {
                 const prob = problemMap.get(a.problemId);
-                const statusName = a.answerStatusId ? statusMap.get(a.answerStatusId) : null;
+                const statusEntry = a.answerStatusId ? statusMap.get(a.answerStatusId) : null;
                 return (
                   <tr key={a.id} className="border-b border-border/30 hover:bg-accent/20">
                     <td className="py-2 px-3 text-xs">{a.date ? new Date(a.date).toLocaleDateString("ja-JP") : ""}</td>
@@ -141,7 +141,7 @@ export default function AnswersPage() {
                       </div>
                     </td>
                     <td className="py-2 px-3">
-                      {statusName && <StatusTag status={statusName as AnswerStatus} opaque />}
+                      {statusEntry && <StatusTag status={statusEntry.name as AnswerStatus} color={statusEntry.color} opaque />}
                     </td>
                     <td className="py-2 px-3 font-mono text-xs text-muted-foreground">{fmtDuration(a.duration)}</td>
                     <td className="py-2 px-3">

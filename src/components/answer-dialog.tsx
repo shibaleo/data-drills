@@ -7,7 +7,7 @@ import { ANSWER_STATUSES, REVIEW_TYPES } from '@/lib/types'
 import { StatusTag } from '@/components/color-tags'
 import { Markdown } from '@/components/markdown'
 import { CodeCombobox } from '@/components/code-combobox'
-import { useProject } from '@/hooks/use-project'
+import { useProject, useLookup } from '@/hooks/use-project'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -79,6 +79,7 @@ export function AnswerDialog({
   onSave,
 }: AnswerDialogProps) {
   const { currentProject, subjects, levels } = useProject()
+  const { statusColor } = useLookup()
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
@@ -163,7 +164,7 @@ export function AnswerDialog({
                 <SelectContent>
                   {ANSWER_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      <StatusTag status={s} />
+                      <StatusTag status={s} color={statusColor(s)} />
                     </SelectItem>
                   ))}
                 </SelectContent>

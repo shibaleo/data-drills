@@ -349,7 +349,7 @@ export default function FlashcardsPage() {
                             onClick={() => handleRate(card.id, s.point ?? 0)}
                             className="transition-opacity hover:opacity-80"
                           >
-                            <StatusTag status={s.name as AnswerStatus} opaque />
+                            <StatusTag status={s.name as AnswerStatus} color={s.color} opaque />
                           </button>
                         ))}
                       </div>
