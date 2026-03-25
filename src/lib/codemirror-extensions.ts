@@ -26,7 +26,6 @@ export const darkThemeOverrides = EditorView.theme({
   },
   ".cm-content": {
     padding: "0.75rem",
-    minHeight: "250px",
     caretColor: "#e5e1d8",
   },
   ".cm-cursor": {

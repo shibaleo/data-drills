@@ -78,10 +78,10 @@ export default function CodemirrorEditor({ defaultValue, onChange, placeholder, 
       tableMarkdownPlugin,
       darkThemeOverrides,
 
-      // Compact mode: reduce min height
-      ...(compact
-        ? [EditorView.theme({ ".cm-content": { minHeight: "80px" } })]
-        : []),
+      // Content min height
+      EditorView.theme({
+        ".cm-content": { minHeight: compact ? "80px" : "250px" },
+      }),
     ],
     [compact],
   );
