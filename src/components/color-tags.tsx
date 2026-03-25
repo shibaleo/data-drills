@@ -14,11 +14,11 @@ const STATUS_HEX: Record<AnswerStatus, string> = {
 
 /** Opaque variant — colour-mixed onto --card so no bleed-through on timeline lines */
 const STATUS_COLORS_OPAQUE: Record<AnswerStatus, string> = {
-  Yet:    'text-red-400 bg-[color-mix(in_srgb,var(--card),theme(colors.red.500)_20%)]',
-  Repeat: 'text-orange-400 bg-[color-mix(in_srgb,var(--card),theme(colors.orange.500)_20%)]',
-  Check:  'text-amber-300 bg-[color-mix(in_srgb,var(--card),theme(colors.amber.400)_20%)]',
-  Recall: 'text-green-400 bg-[color-mix(in_srgb,var(--card),theme(colors.green.500)_20%)]',
-  Done:   'text-blue-400 bg-[color-mix(in_srgb,var(--card),theme(colors.blue.500)_20%)]',
+  Yet:    'text-red-400 bg-[color-mix(in_srgb,hsl(var(--card)),theme(colors.red.500)_20%)]',
+  Repeat: 'text-orange-400 bg-[color-mix(in_srgb,hsl(var(--card)),theme(colors.orange.500)_20%)]',
+  Check:  'text-amber-300 bg-[color-mix(in_srgb,hsl(var(--card)),theme(colors.amber.400)_20%)]',
+  Recall: 'text-green-400 bg-[color-mix(in_srgb,hsl(var(--card)),theme(colors.green.500)_20%)]',
+  Done:   'text-blue-400 bg-[color-mix(in_srgb,hsl(var(--card)),theme(colors.blue.500)_20%)]',
 }
 
 export const STATUS_DOT_COLORS: Record<AnswerStatus, string> = {

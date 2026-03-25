@@ -5,38 +5,39 @@
    ============================================================================= */
 
 :root {
-  --accent-value: #d07850;
+  /* HSL channel format — codemirror-live-markdown が hsl(var(--name)) で参照する */
+  --accent-value: 19 58% 56%;
 
-  --background: #212126;
-  --card: #2a2a2f;
-  --popover: #2a2a2f;
+  --background: 240 7% 14%;
+  --card: 240 6% 17%;
+  --popover: 240 6% 17%;
 
-  --foreground: #c8c8c8;
-  --card-foreground: #e5e1d8;
-  --popover-foreground: #e5e1d8;
+  --foreground: 0 0% 78%;
+  --card-foreground: 42 20% 87%;
+  --popover-foreground: 42 20% 87%;
 
   --primary: var(--accent-value);
-  --primary-foreground: #0a0a0a;
+  --primary-foreground: 0 0% 4%;
 
-  --secondary: #343438;
-  --secondary-foreground: #fafafa;
-  --muted: #343438;
-  --muted-foreground: #989898;
-  --accent: #343438;
-  --accent-foreground: #fafafa;
+  --secondary: 240 4% 21%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 4% 21%;
+  --muted-foreground: 0 0% 60%;
+  --accent: 240 4% 21%;
+  --accent-foreground: 0 0% 98%;
 
-  --border: #3e3e45;
-  --input: #46464e;
+  --border: 240 5% 26%;
+  --input: 240 5% 29%;
   --ring: var(--accent-value);
 
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
 
   /* Sidebar */
-  --sidebar: #26262a;
-  --sidebar-foreground: #fafafa;
-  --sidebar-border: #343438;
-  --sidebar-accent: #343438;
+  --sidebar: 240 5% 16%;
+  --sidebar-foreground: 0 0% 98%;
+  --sidebar-border: 240 4% 21%;
+  --sidebar-accent: 240 4% 21%;
 
   --radius: 0.5rem;
 }
@@ -49,35 +50,35 @@
   --font-sans: system-ui, sans-serif;
   --font-mono: monospace;
 
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
 
   --animate-slide-in-from-left: slide-in-from-left 0.2s ease-out;
   --animate-slide-out-to-left: slide-out-to-left 0.2s ease-in;
@@ -103,11 +104,11 @@
   }
   html {
     color-scheme: dark;
-    scrollbar-color: var(--border) var(--background);
+    scrollbar-color: hsl(var(--border)) hsl(var(--background));
   }
   body {
-    background-color: var(--background);
-    color: var(--foreground);
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     min-height: 100dvh;
   }
 }
@@ -121,11 +122,11 @@
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: hsl(var(--border));
   border-radius: 4px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
+  background: hsl(var(--muted-foreground));
 }
 
 /* FlipCard animation */
@@ -172,33 +173,4 @@
   outline: none;
 }
 
-/* Table widget (codemirror-live-markdown tableField) */
-.cm-table-widget table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 4px 0;
-}
-
-.cm-table-widget th,
-.cm-table-widget td {
-  border: 1px solid var(--border);
-  padding: 6px 12px;
-  text-align: left;
-}
-
-.cm-table-widget th {
-  background: color-mix(in srgb, var(--muted) 50%, transparent);
-  font-weight: 500;
-}
-
-.cm-table-widget td {
-  background: transparent;
-}
-
-.cm-table-widget code {
-  background: var(--muted);
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-size: 0.9em;
-}
 

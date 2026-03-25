@@ -178,7 +178,7 @@ function MasterSection({
   return (
     <div className="border border-border rounded-lg">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
-        <h3 className="text-sm font-semibold" style={{ color: 'var(--primary)' }}>{def.pluralName}</h3>
+        <h3 className="text-sm font-semibold" style={{ color: 'hsl(var(--primary))' }}>{def.pluralName}</h3>
         <Button variant="ghost" size="icon" className="size-7" onClick={handleCreate}>
           <Plus className="size-3.5" />
         </Button>
