@@ -113,12 +113,15 @@ export default function AnswersPage() {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const [ddProblems, ddAnswers, ddReviews, ddReviewTags, ddTags, ddFiles] = await Promise.all([
+      // Fetch in 2 batches to avoid exhausting DB connections on Vercel
+      const [ddProblems, ddAnswers, ddTags] = await Promise.all([
         fetchAllPages<DDProblem>("/problems", { project_id: currentProject.id }),
         fetchAllPages<DDAnswer>("/answers"),
+        fetchAllPages<DDTag>("/tags"),
+      ]);
+      const [ddReviews, ddReviewTags, ddFiles] = await Promise.all([
         fetchAllPages<DDReview>("/reviews"),
         fetchAllPages<DDReviewTag>("/review-tags"),
-        fetchAllPages<DDTag>("/tags"),
         fetchAllPages<DDProblemFile>("/problem-files"),
       ]);
 
