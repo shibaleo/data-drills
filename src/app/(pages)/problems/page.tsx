@@ -65,7 +65,8 @@ export default function ProblemsPage() {
 
   // Detail dialog
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailProblem, setDetailProblem] = useState<ProblemWithAnswers | null>(null);
+  const [detailProblemId, setDetailProblemId] = useState<string | null>(null);
+  const detailProblem = detailProblemId ? problems.find(p => p.id === detailProblemId) ?? null : null;
 
   // Problem edit dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -220,7 +221,7 @@ export default function ProblemsPage() {
   };
 
   const handleRowClick = (p: ProblemWithAnswers) => {
-    setDetailProblem(p);
+    setDetailProblemId(p.id);
     setDetailOpen(true);
   };
 

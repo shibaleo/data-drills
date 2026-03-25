@@ -76,7 +76,8 @@ export default function AnswersPage() {
 
   // Detail dialog
   const [detailOpen, setDetailOpen] = useState(false);
-  const [detailProblem, setDetailProblem] = useState<ProblemWithAnswers | null>(null);
+  const [detailProblemId, setDetailProblemId] = useState<string | null>(null);
+  const detailProblem = detailProblemId ? problemsWithAnswers.find(p => p.id === detailProblemId) ?? null : null;
 
   // Problem edit dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -105,12 +106,6 @@ export default function AnswersPage() {
     for (const p of rawProblems) m.set(p.id, p);
     return m;
   }, [rawProblems]);
-
-  const problemWithAnswersMap = useMemo(() => {
-    const m = new Map<string, ProblemWithAnswers>();
-    for (const p of problemsWithAnswers) m.set(p.id, p);
-    return m;
-  }, [problemsWithAnswers]);
 
   const now = useMemo(() => new Date(), []);
 
@@ -258,11 +253,8 @@ export default function AnswersPage() {
   };
 
   const handleRowClick = (a: DDAnswer) => {
-    const p = problemWithAnswersMap.get(a.problemId);
-    if (p) {
-      setDetailProblem(p);
-      setDetailOpen(true);
-    }
+    setDetailProblemId(a.problemId);
+    setDetailOpen(true);
   };
 
   if (!currentProject) {
