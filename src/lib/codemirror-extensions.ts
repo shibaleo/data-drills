@@ -45,6 +45,12 @@ export const darkThemeOverrides = EditorView.theme({
   ".cm-bullet": {
     color: "#a1a1aa",
   },
+  /* horizontal rule */
+  ".cm-hr-widget": {
+    display: "block",
+    borderTop: "1px solid #a1a1aa44",
+    margin: "0.5em 0",
+  },
 });
 
 /* ── Syntax tree kicker ──
@@ -169,6 +175,63 @@ export const bulletPlugin = ViewPlugin.fromClass(
           const line = state.doc.lineAt(node.from);
           if (activeLines.has(line.number)) return;
           builder.add(node.from, node.from, bulletDeco);
+        },
+      });
+      return builder.finish();
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+/* ── Horizontal rule plugin: HorizontalRule → <hr> ──
+ *
+ * Lezer は `---` / `***` / `___` を HorizontalRule ノードとしてパースする。
+ * カーソルが行外にあるとき、行全体を `<hr>` ウィジェットで置換する。
+ */
+
+class HRWidget extends WidgetType {
+  toDOM() {
+    const hr = document.createElement("hr");
+    hr.className = "cm-hr-widget";
+    return hr;
+  }
+  eq() {
+    return true;
+  }
+}
+
+const hrReplace = Decoration.replace({ widget: new HRWidget() });
+
+export const horizontalRulePlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = this.build(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged || update.selectionSet) {
+        this.decorations = this.build(update.view);
+      }
+    }
+    build(view: EditorView): DecorationSet {
+      const builder = new RangeSetBuilder<Decoration>();
+      const state = view.state;
+
+      const activeLines = new Set<number>();
+      for (const range of state.selection.ranges) {
+        const startLine = state.doc.lineAt(range.from).number;
+        const endLine = state.doc.lineAt(range.to).number;
+        for (let i = startLine; i <= endLine; i++) {
+          activeLines.add(i);
+        }
+      }
+
+      syntaxTree(state).iterate({
+        enter(node) {
+          if (node.name !== "HorizontalRule") return;
+          const line = state.doc.lineAt(node.from);
+          if (activeLines.has(line.number)) return;
+          builder.add(node.from, node.to, hrReplace);
         },
       });
       return builder.finish();

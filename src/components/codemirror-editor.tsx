@@ -27,6 +27,7 @@ import "katex/dist/katex.min.css";
 import {
   darkThemeOverrides,
   bulletPlugin,
+  horizontalRulePlugin,
   syntaxTreeKicker,
   tableMarkdownPlugin,
 } from "@/lib/codemirror-extensions";
@@ -73,6 +74,7 @@ export default function CodemirrorEditor({ defaultValue, onChange, placeholder, 
       // Custom overrides
       syntaxTreeKicker,
       bulletPlugin,
+      horizontalRulePlugin,
       tableMarkdownPlugin,
       darkThemeOverrides,
 
