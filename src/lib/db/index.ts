@@ -5,7 +5,7 @@ import * as schema from "./schema";
 const globalForDb = globalThis as unknown as { _pgClient?: ReturnType<typeof postgres> };
 
 const client = globalForDb._pgClient ?? postgres(process.env.DATABASE_URL!, {
-  max: 5,
+  max: 1,
   idle_timeout: 20,
   connect_timeout: 10,
 });

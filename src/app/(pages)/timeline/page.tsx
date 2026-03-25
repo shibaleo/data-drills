@@ -97,17 +97,13 @@ export default function TimelinePage() {
     if (!currentProject) return;
     setLoading(true);
     try {
-      // Fetch in 2 batches to avoid exhausting DB connections on Vercel
-      const [ddProblems, ddAnswers, ddTags] = await Promise.all([
-        fetchAllPages<DDProblem>("/problems", { project_id: currentProject.id }),
-        fetchAllPages<DDAnswer>("/answers"),
-        fetchAllPages<DDTag>("/tags"),
-      ]);
-      const [ddReviews, ddReviewTags, ddFiles] = await Promise.all([
-        fetchAllPages<DDReview>("/reviews"),
-        fetchAllPages<DDReviewTag>("/review-tags"),
-        fetchAllPages<DDProblemFile>("/problem-files"),
-      ]);
+      // Sequential fetches to avoid DB connection exhaustion on Vercel serverless
+      const ddProblems = await fetchAllPages<DDProblem>("/problems", { project_id: currentProject.id });
+      const ddAnswers = await fetchAllPages<DDAnswer>("/answers");
+      const ddReviews = await fetchAllPages<DDReview>("/reviews");
+      const ddReviewTags = await fetchAllPages<DDReviewTag>("/review-tags");
+      const ddTags = await fetchAllPages<DDTag>("/tags");
+      const ddFiles = await fetchAllPages<DDProblemFile>("/problem-files");
 
       // Build tag lookup
       const tagMap = new Map<string, string>();
