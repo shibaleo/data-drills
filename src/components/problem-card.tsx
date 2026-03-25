@@ -87,6 +87,8 @@ interface ProblemCardProps {
   onDelete?: (id: string) => void
   /** Called after a PDF is linked via Drive Picker. If omitted, PDF section is hidden. */
   onPdfLinked?: (problemId: string) => void
+  /** Render without Card wrapper (for use inside dialogs) */
+  bare?: boolean
 }
 
 export function ProblemCard({
@@ -97,6 +99,7 @@ export function ProblemCard({
   onEditAnswer,
   onDelete,
   onPdfLinked,
+  bare,
 }: ProblemCardProps) {
   const lookup = useLookup()
   const answers = [...p.answers].sort(
@@ -104,9 +107,8 @@ export function ProblemCard({
   )
   const info = computeForgettingInfo(p.answers, now)
 
-  return (
-    <Card className="py-4">
-      <CardContent className="relative space-y-3">
+  const content = (
+    <div className="relative space-y-3">
         {/* Header: code + edit (left) | subject, level (right) */}
         <div className="flex items-center gap-1.5 text-xs">
           <span className="font-mono font-medium text-sm whitespace-nowrap">{p.code}</span>
@@ -279,6 +281,15 @@ export function ProblemCard({
             </button>
           </div>
         )}
+    </div>
+  )
+
+  if (bare) return content
+
+  return (
+    <Card className="py-4">
+      <CardContent>
+        {content}
       </CardContent>
     </Card>
   )

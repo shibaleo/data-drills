@@ -33,7 +33,7 @@ export function ProblemDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto p-4">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader className="sr-only">
           <DialogTitle>{problem.code} {problem.name}</DialogTitle>
           <DialogDescription>Problem detail</DialogDescription>
@@ -46,6 +46,7 @@ export function ProblemDetailDialog({
           onCheck={onCheck}
           onDelete={onDelete}
           onPdfLinked={onPdfLinked}
+          bare
         />
       </DialogContent>
     </Dialog>
