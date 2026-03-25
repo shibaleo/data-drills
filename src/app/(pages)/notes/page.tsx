@@ -4,10 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Pin,
   PinOff,
-  Plus,
   Trash2,
   FileText,
-  ArrowLeft,
   StickyNote,
   List,
 } from "lucide-react";
@@ -16,9 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
-import { usePageTitle } from "@/lib/page-context";
+import { usePageTitle, usePageContext } from "@/lib/page-context";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { MasterList } from "@/components/shared/master-page";
+import { Fab } from "@/components/shared/fab";
 import { cn } from "@/lib/utils";
 
 type NotesTab = "notes" | "masters";
@@ -50,6 +49,9 @@ export default function NotesPage() {
   const [editTitle, setEditTitle] = useState("");
   const contentRef = useRef("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScrollTop = useRef(0);
+  const flushSaveRef = useRef<() => void>(() => {});
+  const { setHeaderSlot, scrollingDown, setScrollingDown } = usePageContext();
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
 
@@ -78,7 +80,7 @@ export default function NotesPage() {
     async (noteId: string, title: string, content: string) => {
       try {
         await api.put(`/notes/${noteId}`, {
-          title: title.trim() || "無題",
+          title: title.trim() || "Untitled",
           content,
         });
       } catch {
@@ -97,6 +99,46 @@ export default function NotesPage() {
       saveNote(selectedId, editTitle, contentRef.current);
     }
   }, [selectedId, editTitle, saveNote]);
+
+  flushSaveRef.current = flushSave;
+
+  // Inject tab buttons into the layout header
+  useEffect(() => {
+    setHeaderSlot(
+      <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5">
+        {([
+          { key: "notes" as const, label: "Notes", icon: StickyNote },
+          { key: "masters" as const, label: "Masters", icon: List },
+        ]).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => {
+              if (key === tab) return;
+              if (tab === "notes") flushSaveRef.current();
+              setTab(key);
+            }}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              tab === key
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon className="size-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>,
+    );
+    return () => setHeaderSlot(null);
+  }, [tab, setHeaderSlot]);
+
+  function handleEditorScroll(e: React.UIEvent<HTMLDivElement>) {
+    const st = e.currentTarget.scrollTop;
+    setScrollingDown(st > lastScrollTop.current && st > 10);
+    lastScrollTop.current = st;
+  }
 
   // Save before switching notes
   function selectNote(id: string) {
@@ -140,7 +182,7 @@ export default function NotesPage() {
     try {
       const res = await api.post<{ data: NoteRow }>("/notes", {
         project_id: currentProject.id,
-        title: "新しいノート",
+        title: "Untitled",
         content: "",
       });
       await fetchData();
@@ -148,7 +190,7 @@ export default function NotesPage() {
       setEditTitle(res.data.title);
       contentRef.current = res.data.content;
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.body?.error : "作成に失敗");
+      toast.error(e instanceof ApiError ? e.body?.error : "Failed to create");
     }
   }
 
@@ -159,13 +201,13 @@ export default function NotesPage() {
     }
     try {
       await api.delete(`/notes/${id}`);
-      toast.success("削除しました");
+      toast.success("Deleted");
       if (selectedId === id) {
         setSelectedId(null);
       }
       fetchData();
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.body?.error : "削除に失敗");
+      toast.error(e instanceof ApiError ? e.body?.error : "Failed to delete");
     }
   }
 
@@ -190,62 +232,26 @@ export default function NotesPage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Tab bar */}
-      <div className="flex items-center justify-center py-2 shrink-0">
-        <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5">
-          {([
-            { key: "notes" as const, label: "ノート", icon: StickyNote },
-            { key: "masters" as const, label: "マスタ", icon: List },
-          ]).map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                if (tab === "notes" && key !== "notes") flushSave();
-                setTab(key);
-              }}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                tab === key
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className="size-3.5" />
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Notes view */}
       <div className={cn("flex flex-col min-h-0", tab === "notes" ? "flex-1" : "hidden")}>
         {/* Title bar — shown when a note is selected */}
       {selectedNote && (
-        <div className="flex items-center gap-2 p-3 border-b border-border shrink-0">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="md:hidden size-8"
-            onClick={() => {
-              flushSave();
-              setSelectedId(null);
-            }}
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
+        <div className={cn(
+          "flex items-center gap-2 border-b border-border shrink-0 transition-all duration-200 overflow-hidden",
+          scrollingDown ? "max-h-0 py-0 border-transparent" : "max-h-20 p-3",
+        )}>
           <Input
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
             onBlur={handleTitleBlur}
-            placeholder="タイトル"
+            placeholder="Title"
             className="text-lg font-semibold flex-1"
           />
           <Button
             size="sm"
             variant="ghost"
             onClick={() => togglePin(selectedNote)}
-            title={selectedNote.pinned ? "ピン解除" : "ピン留め"}
+            title={selectedNote.pinned ? "Unpin" : "Pin"}
           >
             {selectedNote.pinned ? (
               <PinOff className="size-3.5" />
@@ -264,103 +270,75 @@ export default function NotesPage() {
         </div>
       )}
 
-      {/* Two-panel layout */}
-      <div className="flex flex-1 min-h-0">
-        {/* Left panel: note list */}
-        <div
-          className={cn(
-            "w-full md:w-64 shrink-0 border-r border-border flex flex-col",
-            selectedId ? "hidden md:flex" : "flex",
-          )}
-        >
-          <div className="p-2 border-b border-border">
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full gap-1"
-              onClick={handleCreate}
-            >
-              <Plus className="size-3.5" /> 新規ノート
-            </Button>
+      {/* Editor */}
+      {!selectedNote ? (
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="text-center">
+            <FileText className="size-12 mx-auto mb-2 opacity-30" />
+            <p className="text-sm">Select a note</p>
           </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-4" onScroll={handleEditorScroll}>
+          <div className="mx-auto max-w-3xl">
+            <MarkdownEditor
+              key={selectedNote.id}
+              defaultValue={selectedNote.content}
+              onChange={handleContentChange}
+            />
+          </div>
+        </div>
+      )}
+      </div>
+
+      {/* Masters view */}
+      <div className={cn("overflow-y-auto p-4 md:p-6", tab === "masters" ? "flex-1" : "hidden")}>
+        <div className="max-w-3xl mx-auto space-y-4">
+          {/* Notes list */}
+          <div className="border border-border rounded-lg">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
+              <h3 className="text-sm font-semibold" style={{ color: 'hsl(var(--primary))' }}>Notes</h3>
+            </div>
             {loading ? (
-              <p className="text-center text-sm text-muted-foreground py-4">
-                読み込み中...
-              </p>
+              <div className="px-3 py-4 text-xs text-muted-foreground text-center">Loading...</div>
             ) : notes.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-4">
-                ノートがありません
-              </p>
+              <div className="px-3 py-4 text-xs text-muted-foreground text-center">No notes</div>
             ) : (
               notes.map((n) => (
                 <button
                   key={n.id}
                   type="button"
-                  onClick={() => selectNote(n.id)}
+                  onClick={() => { selectNote(n.id); setScrollingDown(false); setTab("notes"); }}
                   className={cn(
-                    "w-full text-left rounded-md px-2.5 py-2 text-sm transition-colors",
-                    selectedId === n.id
-                      ? "bg-sidebar-accent text-primary"
-                      : "text-foreground/70 hover:bg-sidebar-accent/50",
+                    "w-full text-left px-3 py-2 text-sm border-b border-border/30 transition-colors hover:bg-accent/20",
+                    selectedId === n.id && "bg-sidebar-accent text-primary",
                   )}
                 >
-                  <div className="flex items-center gap-1">
-                    {n.pinned && (
-                      <Pin className="size-3 text-primary shrink-0" />
-                    )}
+                  <div className="flex items-center gap-1.5">
+                    {n.pinned && <Pin className="size-3 text-primary shrink-0" />}
                     <span className="truncate font-medium">{n.title}</span>
                   </div>
                   <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {n.content.slice(0, 60) || "（空）"}
+                    {n.content.slice(0, 60) || "(empty)"}
                   </p>
                 </button>
               ))
             )}
           </div>
+          {/* Topics + Tags */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <MasterList
+              key={`topics-${currentProject.id}`}
+              config={{ title: "Topics", endpoint: `/projects/${currentProject.id}/topics`, entityName: "Topic", hasColor: true }}
+            />
+            <MasterList
+              config={{ title: "Tags", endpoint: "/tags", entityName: "Tag", hasColor: true }}
+            />
+          </div>
         </div>
-
-        {/* Right panel: editor */}
-        <div
-          className={cn(
-            "flex-1 flex flex-col min-h-0",
-            !selectedId ? "hidden md:flex" : "flex",
-          )}
-        >
-          {!selectedNote ? (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <FileText className="size-12 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">ノートを選択してください</p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="mx-auto max-w-3xl">
-                <MarkdownEditor
-                  key={selectedNote.id}
-                  defaultValue={selectedNote.content}
-                  onChange={handleContentChange}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
       </div>
 
-      {/* Masters view */}
-      <div className={cn("overflow-y-auto p-4 md:p-6", tab === "masters" ? "flex-1" : "hidden")}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
-          <MasterList
-            key={`topics-${currentProject.id}`}
-            config={{ title: "Topics", endpoint: `/projects/${currentProject.id}/topics`, entityName: "Topic", hasColor: true }}
-          />
-          <MasterList
-            config={{ title: "Tags", endpoint: "/tags", entityName: "Tag", hasColor: true }}
-          />
-        </div>
-      </div>
+      <Fab onClick={handleCreate} />
     </div>
   );
 }

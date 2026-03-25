@@ -7,7 +7,10 @@ interface PageContextValue {
   setTitle: (t: string) => void;
   subtitle: string;
   setSubtitle: (s: string) => void;
+  headerSlot: React.ReactNode;
+  setHeaderSlot: (node: React.ReactNode) => void;
   scrollingDown: boolean;
+  setScrollingDown: (v: boolean) => void;
 }
 
 const PageContext = createContext<PageContextValue>({
@@ -15,12 +18,16 @@ const PageContext = createContext<PageContextValue>({
   setTitle: () => {},
   subtitle: "",
   setSubtitle: () => {},
+  headerSlot: null,
+  setHeaderSlot: () => {},
   scrollingDown: false,
+  setScrollingDown: () => {},
 });
 
 export function PageProvider({ children }: { children: React.ReactNode }) {
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
+  const [headerSlot, setHeaderSlot] = useState<React.ReactNode>(null);
   const [scrollingDown, setScrollingDown] = useState(false);
   const lastScrollY = useRef(0);
 
@@ -41,7 +48,7 @@ export function PageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <PageContext.Provider value={{ title, setTitle, subtitle, setSubtitle, scrollingDown }}>
+    <PageContext.Provider value={{ title, setTitle, subtitle, setSubtitle, headerSlot, setHeaderSlot, scrollingDown, setScrollingDown }}>
       {children}
     </PageContext.Provider>
   );

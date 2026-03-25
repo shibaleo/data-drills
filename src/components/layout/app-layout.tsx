@@ -12,7 +12,7 @@ import { PageProvider, usePageContext } from "@/lib/page-context";
 function LayoutInner({ children }: { children: React.ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { title, subtitle, scrollingDown } = usePageContext();
+  const { title, subtitle, headerSlot, scrollingDown } = usePageContext();
   useEffect(() => setMounted(true), []);
 
   return (
@@ -49,6 +49,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
         </span>
         <div className="ml-auto flex items-center gap-1">
           {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+          {headerSlot}
           <FilterPopover />
           <UserMenu collapsed />
         </div>
@@ -60,6 +61,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
       <main className="flex-1 overflow-y-auto flex flex-col">
         <div className="hidden md:flex items-center justify-end gap-2 px-4 pt-3 pb-1">
           {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+          {headerSlot}
           <FilterPopover />
         </div>
         {children}
