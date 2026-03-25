@@ -377,12 +377,12 @@ export default function FlashcardsPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>{editItem ? "カードを編集" : "カードを作成"}</DialogTitle>
             <DialogDescription className="sr-only">{editItem ? "Edit flashcard" : "Create a new flashcard"}</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-2">
+          <div className="grid gap-4 py-2 overflow-y-auto min-h-0">
             <div className="grid gap-2">
               <Label>表面（質問）</Label>
               <MarkdownEditor
