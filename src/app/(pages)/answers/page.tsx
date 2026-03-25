@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { api, ApiError, fetchAllPages } from "@/lib/api-client";
+import { api, ApiError } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { useAnswerForm, useEditAnswerForm } from "@/hooks/use-answer-form";
 import { usePageTitle } from "@/lib/page-context";
@@ -113,13 +113,15 @@ export default function AnswersPage() {
     if (!currentProject) return;
     setLoading(true);
     try {
-      // Sequential fetches to avoid DB connection exhaustion on Vercel serverless
-      const ddProblems = await fetchAllPages<DDProblem>("/problems", { project_id: currentProject.id });
-      const ddAnswers = await fetchAllPages<DDAnswer>("/answers");
-      const ddReviews = await fetchAllPages<DDReview>("/reviews");
-      const ddReviewTags = await fetchAllPages<DDReviewTag>("/review-tags");
-      const ddTags = await fetchAllPages<DDTag>("/tags");
-      const ddFiles = await fetchAllPages<DDProblemFile>("/problem-files");
+      const res = await api.get<{ data: {
+        problems: DDProblem[];
+        answers: DDAnswer[];
+        reviews: DDReview[];
+        reviewTags: DDReviewTag[];
+        tags: DDTag[];
+        problemFiles: DDProblemFile[];
+      } }>(`/problems-detail?project_id=${currentProject.id}`);
+      const { problems: ddProblems, answers: ddAnswers, reviews: ddReviews, reviewTags: ddReviewTags, tags: ddTags, problemFiles: ddFiles } = res.data;
 
       setRawProblems(ddProblems);
 
