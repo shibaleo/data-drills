@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -385,20 +385,20 @@ export default function FlashcardsPage() {
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
               <Label>表面（質問）</Label>
-              <Textarea
+              <MarkdownEditor
+                compact
+                defaultValue={formFront}
+                onChange={setFormFront}
                 placeholder="覚えたい内容・質問"
-                value={formFront}
-                onChange={(e) => setFormFront(e.target.value)}
-                rows={Math.max(3, formFront.split("\n").length + 1)}
               />
             </div>
             <div className="grid gap-2">
               <Label>裏面（答え）</Label>
-              <Textarea
+              <MarkdownEditor
+                compact
+                defaultValue={formBack}
+                onChange={setFormBack}
                 placeholder="答え・解説"
-                value={formBack}
-                onChange={(e) => setFormBack(e.target.value)}
-                rows={Math.max(3, formBack.split("\n").length + 1)}
               />
             </div>
             <div className="grid gap-2">

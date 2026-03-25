@@ -6,13 +6,13 @@ import { usePathname } from "next/navigation";
 import { SITE_NAME } from "@/lib/site";
 import {
   Clock,
+  FileText,
   LayoutGrid,
   Layers,
   List,
   PanelLeftClose,
   PanelLeftOpen,
   PenLine,
-  StickyNote,
   TableProperties,
   Tag,
 } from "lucide-react";
@@ -31,10 +31,10 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/flashcards", label: "Flashcards", icon: Layers },
-  { href: "/notes", label: "Notes", icon: StickyNote },
   { href: "/timeline", label: "Timeline", icon: Clock },
   { href: "/answers", label: "Answers", icon: PenLine },
   { href: "/problems", label: "Problems", icon: TableProperties },
+  { href: "/notes", label: "Notes", icon: FileText },
   { href: "/topics", label: "Topics", icon: List },
   { href: "/tags", label: "Tags", icon: Tag, dividerAfter: true },
   { href: "/masters", label: "Masters", icon: LayoutGrid },

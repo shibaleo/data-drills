@@ -10,7 +10,7 @@ import { CodeCombobox } from '@/components/code-combobox'
 import { useProject, useLookup } from '@/hooks/use-project'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { MarkdownEditor } from '@/components/markdown-editor'
 import { Label } from '@/components/ui/label'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -21,6 +21,7 @@ import {
 
 export interface ReviewRow {
   id?: string
+  _key?: string
   type: ReviewType
   content: string
 }
@@ -193,7 +194,7 @@ export function AnswerDialog({
               </button>
             </div>
             {reviews.map((r, i) => (
-              <div key={i} className="grid gap-1.5">
+              <div key={r._key ?? r.id ?? i} className="grid gap-1.5">
                 <div className="flex items-center gap-2">
                   <Select value={r.type} onValueChange={(v) => onUpdateReview(i, 'type', v)}>
                     <SelectTrigger className="w-fit">
@@ -215,11 +216,11 @@ export function AnswerDialog({
                     &times;
                   </Button>
                 </div>
-                <Textarea
+                <MarkdownEditor
+                  compact
+                  defaultValue={r.content}
+                  onChange={(val) => onUpdateReview(i, 'content', val)}
                   placeholder="振り返り内容"
-                  value={r.content}
-                  onChange={(e) => onUpdateReview(i, 'content', e.target.value)}
-                  rows={(r.content.split('\n').length) + 1}
                 />
               </div>
             ))}

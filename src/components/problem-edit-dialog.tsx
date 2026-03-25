@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Markdown } from "@/components/markdown";
 import { api, ApiError } from "@/lib/api-client";
+import { MarkdownEditor } from "@/components/markdown-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -158,21 +158,12 @@ export function ProblemEditDialog({
           </div>
           <div className="grid gap-2">
             <Label>チェックポイント</Label>
-            <textarea
-              placeholder="この問題で確認すべきこと（Markdown 対応）"
-              value={formCheckpoint}
-              onChange={(e) => setFormCheckpoint(e.target.value)}
-              rows={Math.max(4, formCheckpoint.split("\n").length + 1)}
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            <MarkdownEditor
+              compact
+              defaultValue={formCheckpoint}
+              onChange={setFormCheckpoint}
+              placeholder="この問題で確認すべきこと"
             />
-            {formCheckpoint && (
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">プレビュー</p>
-                <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
-                  <Markdown>{formCheckpoint}</Markdown>
-                </div>
-              </div>
-            )}
           </div>
         </div>
         <div className="flex gap-2">

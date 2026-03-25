@@ -34,6 +34,8 @@ import {
 interface Props {
   defaultValue: string;
   onChange: (value: string) => void;
+  placeholder?: string;
+  compact?: boolean;
 }
 
 /** 末尾の空白を除去（Lezer の GFM Table デリミタ regex が末尾スペースを許容しないため） */
@@ -41,7 +43,7 @@ function trimTrailingSpaces(text: string): string {
   return text.replace(/ +$/gm, "");
 }
 
-export default function CodemirrorEditor({ defaultValue, onChange }: Props) {
+export default function CodemirrorEditor({ defaultValue, onChange, placeholder, compact }: Props) {
   const normalizedValue = useMemo(
     () => trimTrailingSpaces(defaultValue),
     [defaultValue],
@@ -73,8 +75,13 @@ export default function CodemirrorEditor({ defaultValue, onChange }: Props) {
       bulletPlugin,
       tableMarkdownPlugin,
       darkThemeOverrides,
+
+      // Compact mode: reduce min height
+      ...(compact
+        ? [EditorView.theme({ ".cm-content": { minHeight: "80px" } })]
+        : []),
     ],
-    [],
+    [compact],
   );
 
   return (
@@ -83,7 +90,7 @@ export default function CodemirrorEditor({ defaultValue, onChange }: Props) {
       onChange={onChange}
       extensions={extensions}
       basicSetup={false}
-      placeholder="ノートを書き始めましょう..."
+      placeholder={placeholder ?? "ノートを書き始めましょう..."}
     />
   );
 }

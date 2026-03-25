@@ -5,8 +5,7 @@ import {
   Pin,
   Trash2,
   FileText,
-  StickyNote,
-  List,
+  LayoutGrid,
   GripVertical,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -234,8 +233,8 @@ export default function NotesPage() {
         {/* Right: tabs */}
         <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5 shrink-0">
           {([
-            { key: "notes" as const, label: "Notes", icon: StickyNote },
-            { key: "masters" as const, label: "Masters", icon: List },
+            { key: "notes" as const, label: "Notes", icon: FileText },
+            { key: "masters" as const, label: "Masters", icon: LayoutGrid },
           ]).map(({ key, label, icon: Icon }) => (
             <button
               key={key}

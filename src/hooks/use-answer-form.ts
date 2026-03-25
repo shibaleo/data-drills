@@ -102,7 +102,7 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
   const [code, setCode] = useState('')
   const [duration, setDuration] = useState('')
   const [status, setStatus] = useState<AnswerStatus>('Yet')
-  const [reviews, setReviews] = useState<{ type: ReviewType; content: string }[]>([])
+  const [reviews, setReviews] = useState<{ _key?: string; type: ReviewType; content: string }[]>([])
 
   const [origSubject, setOrigSubject] = useState('')
   const [origLevel, setOrigLevel] = useState('')
@@ -153,7 +153,7 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
   }
 
   function addReview() {
-    setReviews((prev) => [...prev, { type: '不理解' as ReviewType, content: '' }])
+    setReviews((prev) => [...prev, { _key: crypto.randomUUID(), type: '不理解' as ReviewType, content: '' }])
   }
   function updateReview(index: number, field: 'type' | 'content', value: string) {
     setReviews((prev) => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
@@ -235,7 +235,7 @@ export function useEditAnswerForm(onSaved: (problemId: string) => void) {
   const [code, setCode] = useState('')
   const [status, setStatus] = useState<AnswerStatus>('Yet')
   const [duration, setDuration] = useState('')
-  const [reviews, setReviews] = useState<{ id?: string; type: ReviewType; content: string }[]>([])
+  const [reviews, setReviews] = useState<{ id?: string; _key?: string; type: ReviewType; content: string }[]>([])
 
   const [origSubject, setOrigSubject] = useState('')
   const [origLevel, setOrigLevel] = useState('')
@@ -267,13 +267,13 @@ export function useEditAnswerForm(onSaved: (problemId: string) => void) {
     setStatus((answer.status as AnswerStatus) ?? 'Yet')
     setDuration(answer.duration ?? '')
     setReviews(
-      answer.reviews.map((r) => ({ id: r.id, type: (r.review_type ?? '不理解') as ReviewType, content: r.content })),
+      answer.reviews.map((r) => ({ id: r.id, _key: crypto.randomUUID(), type: (r.review_type ?? '不理解') as ReviewType, content: r.content })),
     )
     setOpen(true)
   }
 
   function addReview() {
-    setReviews((prev) => [...prev, { type: '不理解' as ReviewType, content: '' }])
+    setReviews((prev) => [...prev, { _key: crypto.randomUUID(), type: '不理解' as ReviewType, content: '' }])
   }
   function updateReview(index: number, field: 'type' | 'content', value: string) {
     setReviews((prev) => prev.map((r, i) => i === index ? { ...r, [field]: value } : r))
