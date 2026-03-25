@@ -3,20 +3,43 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Pin,
-  PinOff,
   Trash2,
   FileText,
   StickyNote,
   List,
+  GripVertical,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { usePageTitle, usePageContext } from "@/lib/page-context";
 import { MarkdownEditor } from "@/components/markdown-editor";
-import { MasterList } from "@/components/shared/master-page";
 import { Fab } from "@/components/shared/fab";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +59,61 @@ interface NoteRow {
   updatedAt: string;
 }
 
+/* ── Sortable note row ── */
+
+function SortableNoteRow({
+  note: n,
+  selected,
+  onClick,
+}: {
+  note: NoteRow;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: n.id });
+  const didDrag = useRef(false);
+
+  useEffect(() => {
+    if (isDragging) didDrag.current = true;
+  }, [isDragging]);
+
+  const handleClick = () => {
+    if (didDrag.current) { didDrag.current = false; return; }
+    onClick();
+  };
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 px-3 py-2 text-sm border-b border-border/30 transition-colors hover:bg-accent/20 cursor-grab active:cursor-grabbing touch-none",
+        selected && "bg-sidebar-accent text-primary",
+      )}
+      onClick={handleClick}
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical className="size-3.5 text-muted-foreground/30 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          {n.pinned && <Pin className="size-3 text-primary shrink-0" />}
+          <span className="truncate font-medium">{n.title}</span>
+        </div>
+        <p className="text-xs text-muted-foreground truncate mt-0.5">
+          {n.content.slice(0, 60) || "(empty)"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ── Page ── */
 
 export default function NotesPage() {
@@ -50,10 +128,34 @@ export default function NotesPage() {
   const contentRef = useRef("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScrollTop = useRef(0);
+  const scrollCooldown = useRef(false);
   const flushSaveRef = useRef<() => void>(() => {});
+  const deleteRef = useRef<(id: string) => void>(() => {});
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const { setHeaderSlot, scrollingDown, setScrollingDown } = usePageContext();
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleNoteDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = notes.findIndex((n) => n.id === active.id);
+    const newIndex = notes.findIndex((n) => n.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(notes, oldIndex, newIndex);
+    setNotes(reordered);
+    try {
+      await api.patch("/notes/reorder", { ids: reordered.map((n) => n.id) });
+    } catch {
+      toast.error("Failed to save order");
+      setNotes(notes);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
@@ -102,41 +204,75 @@ export default function NotesPage() {
 
   flushSaveRef.current = flushSave;
 
-  // Inject tab buttons into the layout header
+  // Inject title controls + tab buttons into the layout header
   useEffect(() => {
     setHeaderSlot(
-      <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5">
-        {([
-          { key: "notes" as const, label: "Notes", icon: StickyNote },
-          { key: "masters" as const, label: "Masters", icon: List },
-        ]).map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => {
-              if (key === tab) return;
-              if (tab === "notes") flushSaveRef.current();
-              setTab(key);
-            }}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              tab === key
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Icon className="size-3.5" />
-            {label}
-          </button>
-        ))}
+      <div className="flex items-center gap-2">
+        {/* Left: title + delete (only when editing a note) */}
+        {tab === "notes" && selectedNote ? (
+          <div className="flex items-center gap-1 min-w-0 flex-1">
+            <Input
+              value={editTitle}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTitle(e.target.value)}
+              onBlur={() => flushSaveRef.current()}
+              placeholder="Title"
+              className="h-8 max-w-xs text-sm font-semibold"
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="size-8 p-0 text-destructive hover:text-destructive shrink-0"
+              onClick={() => { if (selectedId) setConfirmDeleteId(selectedId); }}
+              title="Delete"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex-1" />
+        )}
+        {/* Right: tabs */}
+        <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5 shrink-0">
+          {([
+            { key: "notes" as const, label: "Notes", icon: StickyNote },
+            { key: "masters" as const, label: "Masters", icon: List },
+          ]).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                if (key === tab) return;
+                if (tab === "notes") flushSaveRef.current();
+                setTab(key);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                tab === key
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>,
     );
     return () => setHeaderSlot(null);
-  }, [tab, setHeaderSlot]);
+  }, [tab, selectedNote, selectedId, editTitle, setHeaderSlot]);
 
   function handleEditorScroll(e: React.UIEvent<HTMLDivElement>) {
+    if (scrollCooldown.current) return;
     const st = e.currentTarget.scrollTop;
-    setScrollingDown(st > lastScrollTop.current && st > 10);
+    const delta = st - lastScrollTop.current;
+    if (Math.abs(delta) < 8) return;
+    const down = delta > 0 && st > 10;
+    if (down !== scrollingDown) {
+      setScrollingDown(down);
+      scrollCooldown.current = true;
+      setTimeout(() => { scrollCooldown.current = false; }, 300);
+    }
     lastScrollTop.current = st;
   }
 
@@ -164,15 +300,6 @@ export default function NotesPage() {
         );
       }
     }, 2000);
-  }
-
-  // Save on title blur
-  function handleTitleBlur() {
-    if (selectedId) {
-      saveNote(selectedId, editTitle, contentRef.current).then(() =>
-        fetchData(),
-      );
-    }
   }
 
   /* ── Handlers ── */
@@ -211,14 +338,7 @@ export default function NotesPage() {
     }
   }
 
-  async function togglePin(n: NoteRow) {
-    try {
-      await api.put(`/notes/${n.id}`, { pinned: !n.pinned });
-      fetchData();
-    } catch {
-      /* ignore */
-    }
-  }
+  deleteRef.current = handleDelete;
 
   if (!currentProject) {
     return (
@@ -234,43 +354,6 @@ export default function NotesPage() {
     <div className="flex flex-col flex-1 min-h-0">
       {/* Notes view */}
       <div className={cn("flex flex-col min-h-0", tab === "notes" ? "flex-1" : "hidden")}>
-        {/* Title bar — shown when a note is selected */}
-      {selectedNote && (
-        <div className={cn(
-          "flex items-center gap-2 border-b border-border shrink-0 transition-all duration-200 overflow-hidden",
-          scrollingDown ? "max-h-0 py-0 border-transparent" : "max-h-20 p-3",
-        )}>
-          <Input
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            onBlur={handleTitleBlur}
-            placeholder="Title"
-            className="text-lg font-semibold flex-1"
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => togglePin(selectedNote)}
-            title={selectedNote.pinned ? "Unpin" : "Pin"}
-          >
-            {selectedNote.pinned ? (
-              <PinOff className="size-3.5" />
-            ) : (
-              <Pin className="size-3.5" />
-            )}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-destructive hover:text-destructive"
-            onClick={() => handleDelete(selectedNote.id)}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      )}
-
-      {/* Editor */}
       {!selectedNote ? (
         <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <div className="text-center">
@@ -279,8 +362,8 @@ export default function NotesPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-4" onScroll={handleEditorScroll}>
-          <div className="mx-auto max-w-3xl">
+        <div className="flex-1 overflow-y-auto" onScroll={handleEditorScroll}>
+          <div className="mx-auto max-w-3xl p-4">
             <MarkdownEditor
               key={selectedNote.id}
               defaultValue={selectedNote.content}
@@ -293,8 +376,7 @@ export default function NotesPage() {
 
       {/* Masters view */}
       <div className={cn("overflow-y-auto p-4 md:p-6", tab === "masters" ? "flex-1" : "hidden")}>
-        <div className="max-w-3xl mx-auto space-y-4">
-          {/* Notes list */}
+        <div className="max-w-3xl mx-auto">
           <div className="border border-border rounded-lg">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
               <h3 className="text-sm font-semibold" style={{ color: 'hsl(var(--primary))' }}>Notes</h3>
@@ -304,41 +386,46 @@ export default function NotesPage() {
             ) : notes.length === 0 ? (
               <div className="px-3 py-4 text-xs text-muted-foreground text-center">No notes</div>
             ) : (
-              notes.map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  onClick={() => { selectNote(n.id); setScrollingDown(false); setTab("notes"); }}
-                  className={cn(
-                    "w-full text-left px-3 py-2 text-sm border-b border-border/30 transition-colors hover:bg-accent/20",
-                    selectedId === n.id && "bg-sidebar-accent text-primary",
-                  )}
-                >
-                  <div className="flex items-center gap-1.5">
-                    {n.pinned && <Pin className="size-3 text-primary shrink-0" />}
-                    <span className="truncate font-medium">{n.title}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {n.content.slice(0, 60) || "(empty)"}
-                  </p>
-                </button>
-              ))
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleNoteDragEnd}>
+                <SortableContext items={notes.map((n) => n.id)} strategy={verticalListSortingStrategy}>
+                  {notes.map((n) => (
+                    <SortableNoteRow
+                      key={n.id}
+                      note={n}
+                      selected={selectedId === n.id}
+                      onClick={() => { selectNote(n.id); setScrollingDown(false); setTab("notes"); }}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
             )}
-          </div>
-          {/* Topics + Tags */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MasterList
-              key={`topics-${currentProject.id}`}
-              config={{ title: "Topics", endpoint: `/projects/${currentProject.id}/topics`, entityName: "Topic", hasColor: true }}
-            />
-            <MasterList
-              config={{ title: "Tags", endpoint: "/tags", entityName: "Tag", hasColor: true }}
-            />
           </div>
         </div>
       </div>
 
       <Fab onClick={handleCreate} />
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete note</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Are you sure you want to delete this note? This action cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirmDeleteId) deleteRef.current(confirmDeleteId);
+                setConfirmDeleteId(null);
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

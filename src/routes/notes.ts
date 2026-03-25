@@ -57,6 +57,18 @@ app.put("/:id", async (c) => {
   return c.json({ data: row });
 });
 
+app.patch("/reorder", async (c) => {
+  const body = await c.req.json();
+  const ids = body.ids as string[];
+  if (!Array.isArray(ids)) return c.json({ error: "ids must be an array" }, 400);
+  await Promise.all(
+    ids.map((id, i) =>
+      db.update(note).set({ sortOrder: i, updatedAt: new Date() }).where(eq(note.id, id)),
+    ),
+  );
+  return c.json({ ok: true });
+});
+
 app.delete("/:id", async (c) => {
   const [row] = await db
     .delete(note)
