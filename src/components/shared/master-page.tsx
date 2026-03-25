@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Trash2, GripVertical } from "lucide-react";
+import { Trash2, GripVertical, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -260,6 +260,121 @@ function SortableRow({
       )}
       <span className="font-mono text-xs text-muted-foreground">{item.code}</span>
       <span className="truncate">{item.name}</span>
+    </div>
+  );
+}
+
+// ── Embeddable MasterList (no page title, no Fab) ──
+
+export function MasterList({ config }: { config: MasterPageConfig }) {
+  const [items, setItems] = useState<MasterRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogItem, setDialogItem] = useState<MasterRow | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<MasterRow | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await fetchAllPages<MasterRow>(config.endpoint);
+      setItems(data);
+    } catch {
+      toast.error(`Failed to fetch ${config.entityName}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [config.endpoint, config.entityName]);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  const handleCreate = () => { setDialogItem(null); setDialogOpen(true); };
+  const handleRowClick = (item: MasterRow) => { setDialogItem(item); setDialogOpen(true); };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = items.findIndex((i) => i.id === active.id);
+    const newIndex = items.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(items, oldIndex, newIndex);
+    setItems(reordered);
+    try {
+      await api.patch(`${config.endpoint}/reorder`, { ids: reordered.map((i) => i.id) });
+    } catch {
+      toast.error("Failed to save order");
+      setItems(items);
+    }
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDelete) return;
+    try {
+      await api.delete(`${config.endpoint}/${confirmDelete.id}`);
+      toast.success(`${config.entityName} deleted`);
+      setConfirmDelete(null);
+      setDialogOpen(false);
+      fetchItems();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.body.error : "Failed to delete");
+    }
+  };
+
+  const handleSaved = () => {
+    toast.success(dialogItem ? `${config.entityName} updated` : `${config.entityName} created`);
+    setDialogOpen(false);
+    fetchItems();
+  };
+
+  return (
+    <div className="border border-border rounded-lg">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
+        <h3 className="text-sm font-semibold" style={{ color: 'hsl(var(--primary))' }}>{config.title}</h3>
+        <Button variant="ghost" size="icon" className="size-7" onClick={handleCreate}>
+          <Plus className="size-3.5" />
+        </Button>
+      </div>
+      {loading ? (
+        <div className="px-3 py-4 text-xs text-muted-foreground text-center">Loading...</div>
+      ) : items.length === 0 ? (
+        <div className="px-3 py-4 text-xs text-muted-foreground text-center">Empty</div>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            {items.map((item) => (
+              <SortableRow key={item.id} item={item} hasColor={config.hasColor} onClick={() => handleRowClick(item)} />
+            ))}
+          </SortableContext>
+        </DndContext>
+      )}
+
+      <MasterItemDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        item={dialogItem}
+        config={config}
+        onSaved={handleSaved}
+        onDeleted={() => dialogItem && setConfirmDelete(dialogItem)}
+      />
+
+      <Dialog open={confirmDelete !== null} onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{confirmDelete?.name}&quot;?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={executeDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

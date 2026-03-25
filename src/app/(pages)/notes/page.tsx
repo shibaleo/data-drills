@@ -8,6 +8,8 @@ import {
   Trash2,
   FileText,
   ArrowLeft,
+  StickyNote,
+  List,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,7 +18,10 @@ import { api, ApiError, fetchAllPages } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { usePageTitle } from "@/lib/page-context";
 import { MarkdownEditor } from "@/components/markdown-editor";
+import { MasterList } from "@/components/shared/master-page";
 import { cn } from "@/lib/utils";
+
+type NotesTab = "notes" | "masters";
 
 /* ── Types ── */
 
@@ -38,6 +43,7 @@ export default function NotesPage() {
   usePageTitle("Notes");
   const { currentProject } = useProject();
 
+  const [tab, setTab] = useState<NotesTab>("notes");
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -184,7 +190,37 @@ export default function NotesPage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Title bar — shown when a note is selected */}
+      {/* Tab bar */}
+      <div className="flex items-center justify-center py-2 shrink-0">
+        <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5">
+          {([
+            { key: "notes" as const, label: "ノート", icon: StickyNote },
+            { key: "masters" as const, label: "マスタ", icon: List },
+          ]).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                if (tab === "notes" && key !== "notes") flushSave();
+                setTab(key);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                tab === key
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Notes view */}
+      <div className={cn("flex flex-col min-h-0", tab === "notes" ? "flex-1" : "hidden")}>
+        {/* Title bar — shown when a note is selected */}
       {selectedNote && (
         <div className="flex items-center gap-2 p-3 border-b border-border shrink-0">
           <Button
@@ -309,6 +345,20 @@ export default function NotesPage() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+      </div>
+
+      {/* Masters view */}
+      <div className={cn("overflow-y-auto p-4 md:p-6", tab === "masters" ? "flex-1" : "hidden")}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
+          <MasterList
+            key={`topics-${currentProject.id}`}
+            config={{ title: "Topics", endpoint: `/projects/${currentProject.id}/topics`, entityName: "Topic", hasColor: true }}
+          />
+          <MasterList
+            config={{ title: "Tags", endpoint: "/tags", entityName: "Tag", hasColor: true }}
+          />
         </div>
       </div>
     </div>
