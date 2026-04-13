@@ -15,6 +15,25 @@ import { StatusTag } from '@/components/color-tags'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
+const TAG_BASE = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs'
+
+function OpaqueTag({ name, color }: { name: string; color: string | null }) {
+  if (!color) {
+    return <span className={`${TAG_BASE} bg-muted text-muted-foreground`}>{name}</span>
+  }
+  return (
+    <span
+      className={TAG_BASE}
+      style={{
+        color,
+        backgroundColor: `color-mix(in srgb, hsl(var(--card)) 80%, ${color})`,
+      }}
+    >
+      {name}
+    </span>
+  )
+}
+
 export type AnswerWithReviews = Answer & { reviews: Review[] }
 export type ProblemWithAnswers = Problem & { answers: AnswerWithReviews[] }
 
@@ -121,8 +140,8 @@ export function ProblemCard({
             <Pencil className="size-3" />
           </button>
           <div className="ml-auto flex items-center gap-1.5">
-            <Badge variant="secondary" className="text-xs text-foreground/70">{lookup.subjectName(p.subject_id)}</Badge>
-            <Badge variant="secondary" className="text-xs text-foreground/70">{lookup.levelName(p.level_id)}</Badge>
+            <OpaqueTag name={lookup.subjectName(p.subject_id)} color={lookup.subjectColor(p.subject_id) || null} />
+            <OpaqueTag name={lookup.levelName(p.level_id)} color={lookup.levelColor(p.level_id) || null} />
           </div>
         </div>
 

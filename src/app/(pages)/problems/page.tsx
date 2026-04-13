@@ -1,8 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Trash2 } from "lucide-react";
+import { Search } from "lucide-react";
 import { toast } from "sonner";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  flexRender,
+  type SortingState,
+} from "@tanstack/react-table";
 import { api, ApiError } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { useAnswerForm, useEditAnswerForm } from "@/hooks/use-answer-form";
@@ -11,6 +19,9 @@ import { Fab } from "@/components/shared/fab";
 import { ProblemDetailDialog } from "@/components/problem-detail-dialog";
 import { ProblemEditDialog } from "@/components/problem-edit-dialog";
 import { AnswerDialog } from "@/components/answer-dialog";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getColumns } from "./columns";
 import type { ProblemWithAnswers } from "@/components/problem-card";
 import type { Problem, Answer, AnswerStatus, Review, ProblemFile } from "@/lib/types";
 
@@ -72,15 +83,19 @@ export default function ProblemsPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editProblem, setEditProblem] = useState<Problem | null>(null);
 
+  // Table state
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
+
   const subjectMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of subjects) m.set(s.id, s.name);
+    const m = new Map<string, { name: string; color: string | null }>();
+    for (const s of subjects) m.set(s.id, { name: s.name, color: s.color ?? null });
     return m;
   }, [subjects]);
 
   const levelMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const l of levels) m.set(l.id, l.name);
+    const m = new Map<string, { name: string; color: string | null }>();
+    for (const l of levels) m.set(l.id, { name: l.name, color: l.color ?? null });
     return m;
   }, [levels]);
 
@@ -210,7 +225,7 @@ export default function ProblemsPage() {
     setEditDialogOpen(true);
   };
 
-  const handleDeleteProblem = async (id: string) => {
+  const handleDeleteProblem = useCallback(async (id: string) => {
     try {
       await api.delete(`/problems/${id}`);
       toast.success("削除しました");
@@ -219,12 +234,34 @@ export default function ProblemsPage() {
     } catch (e) {
       toast.error(e instanceof ApiError ? e.body.error : "削除に失敗しました");
     }
-  };
+  }, [fetchData]);
 
   const handleRowClick = (p: ProblemWithAnswers) => {
     setDetailProblemId(p.id);
     setDetailOpen(true);
   };
+
+  const columns = useMemo(
+    () => getColumns({ subjectMap, levelMap, now, onDelete: handleDeleteProblem }),
+    [subjectMap, levelMap, now, handleDeleteProblem],
+  );
+
+  const table = useReactTable({
+    data: filtered,
+    columns,
+    state: { sorting, globalFilter },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const search = (filterValue as string).toLowerCase();
+      const code = row.original.code.toLowerCase();
+      const name = (row.original.name ?? "").toLowerCase();
+      return code.includes(search) || name.includes(search);
+    },
+  });
 
   if (!currentProject) {
     return (
@@ -238,44 +275,60 @@ export default function ProblemsPage() {
     <div className="p-4 md:p-6">
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">No problems found</div>
       ) : (
-        <div className="border border-border rounded-md overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50 text-left">
-                <th className="py-2 px-3 font-medium">Code</th>
-                <th className="py-2 px-3 font-medium">Name</th>
-                <th className="py-2 px-3 font-medium">Subject</th>
-                <th className="py-2 px-3 font-medium">Level</th>
-                <th className="py-2 px-3 font-medium w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => (
-                <tr
-                  key={p.id}
-                  className="border-b border-border/30 transition-colors cursor-pointer hover:bg-accent/20"
-                  onClick={() => handleRowClick(p)}
-                >
-                  <td className="py-2 px-3 font-mono text-xs">{p.code}</td>
-                  <td className="py-2 px-3">{p.name ?? ""}</td>
-                  <td className="py-2 px-3 text-muted-foreground">{p.subject_id ? subjectMap.get(p.subject_id) ?? "" : ""}</td>
-                  <td className="py-2 px-3 text-muted-foreground">{p.level_id ? levelMap.get(p.level_id) ?? "" : ""}</td>
-                  <td className="py-2 px-3">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleDeleteProblem(p.id); }}
-                      className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-colors"
+        <div className="space-y-3">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Search code or name..."
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              className="pl-9 h-8"
+            />
+          </div>
+
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((hg) => (
+                  <TableRow key={hg.id}>
+                    {hg.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.length ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      className="cursor-pointer"
+                      onClick={() => handleRowClick(row.original)}
                     >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={columns.length} className="h-24 text-center">
+                      No problems found
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            {table.getFilteredRowModel().rows.length} problems
+          </div>
         </div>
       )}
 
