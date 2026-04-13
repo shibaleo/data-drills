@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SITE_NAME } from "@/lib/site";
 import {
+  BarChart3,
   Clock,
   FileText,
   LayoutGrid,
@@ -34,6 +35,7 @@ const navItems: NavItem[] = [
   { href: "/timeline", label: "Timeline", icon: Clock },
   { href: "/answers", label: "Answers", icon: PenLine },
   { href: "/problems", label: "Problems", icon: TableProperties },
+  { href: "/stats", label: "Stats", icon: BarChart3 },
   { href: "/notes", label: "Notes", icon: FileText },
   { href: "/topics", label: "Topics", icon: List },
   { href: "/tags", label: "Tags", icon: Tag, dividerAfter: true },
