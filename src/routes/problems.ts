@@ -24,6 +24,7 @@ app.post("/", async (c) => {
     topicId: (body.topic_id ?? null) as string | null,
     name: (body.name ?? null) as string | null,
     checkpoint: (body.checkpoint ?? null) as string | null,
+    standardTime: (body.standard_time ?? null) as number | null,
     ...(body.id ? { id: body.id as string } : {}),
   };
   const [row] = await db.insert(problem).values(values).returning();
@@ -45,6 +46,7 @@ app.put("/:id", async (c) => {
   if (body.subject_id !== undefined) updates.subjectId = body.subject_id;
   if (body.level_id !== undefined) updates.levelId = body.level_id;
   if (body.topic_id !== undefined) updates.topicId = body.topic_id;
+  if (body.standard_time !== undefined) updates.standardTime = body.standard_time;
   const [row] = await db.update(problem).set(updates).where(eq(problem.id, c.req.param("id"))).returning();
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json({ data: row });

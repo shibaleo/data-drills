@@ -90,7 +90,7 @@ export default function StatsPage() {
       const built: ProblemRetentionMeta[] = [];
       for (const p of problems) {
         const m = buildRetentionMeta(
-          p.id, p.code, p.name ?? "", p.subjectId ?? "",
+          p.id, p.code, p.name ?? "", p.subjectId ?? "", p.levelId ?? "",
           answersByProblem.get(p.id) ?? [], now,
         );
         if (m) built.push(m);

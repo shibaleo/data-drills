@@ -32,6 +32,7 @@ export interface ProblemRetentionMeta {
   code: string
   name: string
   subjectId: string
+  levelId: string
   dated: DatedAnswer[]
   stabilities: number[]
   /** Current retention 0–100 (for card summary) */
@@ -43,6 +44,7 @@ export function buildRetentionMeta(
   code: string,
   name: string,
   subjectId: string,
+  levelId: string,
   answers: { date: string | null; status: AnswerStatus | null; point?: number }[],
   now: Date,
 ): ProblemRetentionMeta | null {
@@ -64,7 +66,7 @@ export function buildRetentionMeta(
   const elapsed = Math.max(0, (today.getTime() - lastDate.getTime()) / 86_400_000)
   const currentRetention = Math.round(retention(elapsed, stabilities[stabilities.length - 1]) * 100)
 
-  return { problemId, code, name, subjectId, dated, stabilities, currentRetention }
+  return { problemId, code, name, subjectId, levelId, dated, stabilities, currentRetention }
 }
 
 /**

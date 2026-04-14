@@ -33,7 +33,7 @@ export function ProblemDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] overflow-y-auto">
         <DialogHeader className="sr-only">
           <DialogTitle>{problem.code} {problem.name}</DialogTitle>
           <DialogDescription>Problem detail</DialogDescription>

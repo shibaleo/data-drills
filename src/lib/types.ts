@@ -36,6 +36,7 @@ export interface Problem {
   level_id: string
   subject_id: string
   checkpoint: string | null
+  standard_time: number | null
   project_id: string
   created_at: string
   updated_at: string

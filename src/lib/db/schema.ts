@@ -130,6 +130,7 @@ export const problem = pgTable("problem", {
   topicId: uuid("topic_id").references(() => topic.id, { onDelete: "set null" }),
   name: text("name"),
   checkpoint: text("checkpoint"),
+  standardTime: integer("standard_time"),
   ...timestamps(),
 }, (t) => [
   uniqueIndex("problem_project_code_key").on(t.projectId, t.code, t.subjectId, t.levelId),

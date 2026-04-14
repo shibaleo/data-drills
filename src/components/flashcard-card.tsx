@@ -3,7 +3,6 @@
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Markdown } from "@/components/markdown";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 export interface FlashcardReviewRow {
   id: string;
@@ -85,13 +84,15 @@ export function FlashcardCard({
           </button>
           <div className="ml-auto flex items-center gap-1.5">
             {top && (
-              <Badge
-                variant="secondary"
-                className="text-xs"
-                style={top.color ? { backgroundColor: top.color, color: "#fff" } : undefined}
+              <span
+                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs"
+                style={top.color ? {
+                  color: top.color,
+                  backgroundColor: `color-mix(in srgb, hsl(var(--card)) 80%, ${top.color})`,
+                } : undefined}
               >
                 {top.name}
-              </Badge>
+              </span>
             )}
           </div>
         </div>
@@ -141,13 +142,15 @@ export function FlashcardCard({
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-foreground/60">{date}</span>
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] h-4 px-1"
-                        style={{ borderColor: color, color }}
+                      <span
+                        className="inline-flex items-center rounded-full px-1.5 py-0 text-[10px] h-4"
+                        style={{
+                          color,
+                          backgroundColor: `color-mix(in srgb, hsl(var(--card)) 80%, ${color})`,
+                        }}
                       >
                         {r.quality} - {qualityLabel(r.quality)}
-                      </Badge>
+                      </span>
                       {onDeleteReview && (
                         <button
                           type="button"

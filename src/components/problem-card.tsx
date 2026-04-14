@@ -13,7 +13,7 @@ import { RetentionBar } from '@/components/retention-bar'
 import { ProblemPdfLink } from '@/components/problem-pdf-link'
 import { StatusTag } from '@/components/color-tags'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+
 
 const TAG_BASE = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs'
 
@@ -206,6 +206,17 @@ export function ProblemCard({
                       <span className="text-foreground/60">{a.date ? toJSTDate(a.date) : '-'}</span>
                       <span className="ml-auto text-foreground/60">{a.duration ?? ''}</span>
                       {(() => {
+                        if (!p.standard_time) return null
+                        const sec = parseDuration(a.duration)
+                        if (sec === null) return null
+                        const pct = Math.round((sec / p.standard_time) * 100)
+                        return (
+                          <span className={`text-[10px] tabular-nums ${pct <= 100 ? 'text-green-400' : 'text-red-400'}`}>
+                            {pct}%
+                          </span>
+                        )
+                      })()}
+                      {(() => {
                         const prev = answers[i + 1]
                         const cur = parseDuration(a.duration)
                         const pre = parseDuration(prev?.duration)
@@ -233,7 +244,7 @@ export function ProblemCard({
                     {reviews.map((rv) => (
                       <div key={rv.id} className="py-1 text-xs">
                         {rv.review_type && (
-                          <Badge variant="secondary" className="-ml-6 text-xs text-foreground">{rv.review_type}</Badge>
+                          <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs -ml-6 bg-muted text-muted-foreground">{rv.review_type}</span>
                         )}
                         {rv.content && (
                           <div className="text-sm text-foreground mt-1 leading-relaxed">

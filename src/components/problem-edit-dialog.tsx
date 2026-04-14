@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api-client";
+import { secondsToHms, hmsToSeconds } from "@/lib/duration";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ interface ProblemRow {
   subjectId: string | null;
   levelId: string | null;
   checkpoint: string | null;
+  standardTime: number | null;
 }
 
 interface ProblemEditDialogProps {
@@ -48,6 +50,7 @@ export function ProblemEditDialog({
   const [formSubject, setFormSubject] = useState("");
   const [formLevel, setFormLevel] = useState("");
   const [formCheckpoint, setFormCheckpoint] = useState("");
+  const [formStandardTime, setFormStandardTime] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -57,12 +60,14 @@ export function ProblemEditDialog({
       setFormSubject(problem.subjectId ?? "");
       setFormLevel(problem.levelId ?? "");
       setFormCheckpoint(problem.checkpoint ?? "");
+      setFormStandardTime(problem.standardTime != null ? secondsToHms(problem.standardTime) : "");
     } else {
       setFormCode("");
       setFormName("");
       setFormSubject(subjects[0]?.id ?? "");
       setFormLevel(levels[0]?.id ?? "");
       setFormCheckpoint("");
+      setFormStandardTime("");
     }
   }, [open, problem, subjects, levels]);
 
@@ -80,6 +85,7 @@ export function ProblemEditDialog({
       subject_id: formSubject || null,
       level_id: formLevel || null,
       checkpoint: formCheckpoint.trim() || null,
+      standard_time: formStandardTime.trim() ? hmsToSeconds(formStandardTime.trim()) : null,
       project_id: projectId,
     };
 
@@ -138,7 +144,7 @@ export function ProblemEditDialog({
               </Select>
             </div>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-[1fr_1fr_100px] gap-4">
             <div className="grid gap-2">
               <Label>コード</Label>
               <Input
@@ -153,6 +159,14 @@ export function ProblemEditDialog({
                 placeholder="例: 連結CF"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>標準時間</Label>
+              <Input
+                placeholder="00:05:00"
+                value={formStandardTime}
+                onChange={(e) => setFormStandardTime(e.target.value)}
               />
             </div>
           </div>

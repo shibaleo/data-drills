@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (err: unknown) {
+    console.error("[drive/file] Error fetching file:", fileId, err);
     const code = (err as { code?: number }).code;
     if (code === 404) {
       await db.delete(problemFile).where(eq(problemFile.gdriveFileId, fileId));

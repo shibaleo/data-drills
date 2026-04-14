@@ -165,7 +165,7 @@ export function AnswerDialog({
                 <SelectContent>
                   {ANSWER_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      <StatusTag status={s} color={statusColor(s)} />
+                      <StatusTag status={s} color={statusColor(s)} opaque />
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -32,6 +32,7 @@ interface DDProblem {
   subjectId: string | null;
   levelId: string | null;
   checkpoint: string | null;
+  standardTime: number | null;
   projectId: string;
   createdAt: string;
   updatedAt: string;
@@ -192,6 +193,7 @@ export default function ProblemsPage() {
         subject_id: p.subjectId ?? "",
         level_id: p.levelId ?? "",
         checkpoint: p.checkpoint,
+        standard_time: p.standardTime ?? null,
         project_id: p.projectId,
         created_at: p.createdAt,
         updated_at: p.updatedAt,
@@ -236,14 +238,25 @@ export default function ProblemsPage() {
     }
   }, [fetchData]);
 
+  const handleCellUpdate = useCallback(async (id: string, field: string, value: unknown) => {
+    try {
+      await api.put(`/problems/${id}`, { [field]: value });
+      setProblems((prev) => prev.map((p) =>
+        p.id === id ? { ...p, [field]: value } : p,
+      ));
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.body.error : "更新に失敗しました");
+    }
+  }, []);
+
   const handleRowClick = (p: ProblemWithAnswers) => {
     setDetailProblemId(p.id);
     setDetailOpen(true);
   };
 
   const columns = useMemo(
-    () => getColumns({ subjectMap, levelMap, now, onDelete: handleDeleteProblem }),
-    [subjectMap, levelMap, now, handleDeleteProblem],
+    () => getColumns({ subjectMap, levelMap, now, onDelete: handleDeleteProblem, onCellUpdate: handleCellUpdate }),
+    [subjectMap, levelMap, now, handleDeleteProblem, handleCellUpdate],
   );
 
   const table = useReactTable({
@@ -362,6 +375,7 @@ export default function ProblemsPage() {
           subjectId: editProblem.subject_id,
           levelId: editProblem.level_id,
           checkpoint: editProblem.checkpoint,
+          standardTime: editProblem.standard_time,
         } : null}
         projectId={currentProject.id}
         subjects={subjects}

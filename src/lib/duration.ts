@@ -1,6 +1,24 @@
 // Re-export from forgetting-curve to avoid duplication
 export { parseDurationSec as parseDuration } from './forgetting-curve'
 
+/** Convert seconds → "HH:MM:SS" */
+export function secondsToHms(sec: number): string {
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = sec % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+/** Parse "HH:MM:SS", "MM:SS", or "SS" → seconds (null on invalid) */
+export function hmsToSeconds(hms: string): number | null {
+  const parts = hms.split(':').map(Number)
+  if (parts.some(isNaN)) return null
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+  if (parts.length === 2) return parts[0] * 60 + parts[1]
+  if (parts.length === 1) return parts[0]
+  return null
+}
+
 /** Format seconds difference as HH:MM:SS (leading zero segments omitted) */
 export function fmtDiff(sec: number): string {
   const abs = Math.abs(sec)

@@ -1,9 +1,11 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
 import type { ProblemWithAnswers } from "@/components/problem-card";
 import { computeForgettingInfo } from "@/lib/forgetting-curve";
+import { secondsToHms, hmsToSeconds } from "@/lib/duration";
 import { toJSTDate } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +33,7 @@ interface ColumnOpts {
   levelMap: Map<string, { name: string; color: string | null }>;
   now: Date;
   onDelete: (id: string) => void;
+  onCellUpdate: (id: string, field: string, value: unknown) => void;
 }
 
 function SortHeader({ column, children }: { column: { getIsSorted: () => false | "asc" | "desc"; toggleSorting: (desc: boolean) => void }; children: React.ReactNode }) {
@@ -49,17 +52,97 @@ function SortHeader({ column, children }: { column: { getIsSorted: () => false |
   );
 }
 
-export function getColumns({ subjectMap, levelMap, now, onDelete }: ColumnOpts): ColumnDef<ProblemWithAnswers>[] {
+function EditableCell({
+  value,
+  onSave,
+  display,
+  format,
+  parse,
+  className,
+}: {
+  value: unknown;
+  onSave: (v: unknown) => void;
+  display?: React.ReactNode;
+  format?: (v: unknown) => string;
+  parse?: (s: string) => unknown;
+  className?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const startEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraft(format ? format(value) : String(value ?? ""));
+    setEditing(true);
+  };
+
+  const commit = () => {
+    setEditing(false);
+    const parsed = parse ? parse(draft) : draft;
+    const original = format ? format(value) : String(value ?? "");
+    if (draft !== original) onSave(parsed);
+  };
+
+  const cancel = () => {
+    setEditing(false);
+  };
+
+  return (
+    <div
+      className={`relative px-1 -mx-1 py-0.5 ${className ?? ""}`}
+      onClick={editing ? undefined : startEdit}
+    >
+      {/* Always render display content to preserve size */}
+      <span className={editing ? "invisible" : "cursor-text hover:bg-muted/50 rounded block"}>
+        {display ?? (value ? String(value) : <span className="text-muted-foreground">--</span>)}
+      </span>
+      {editing && (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); commit(); }
+            if (e.key === "Escape") { e.preventDefault(); cancel(); }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute inset-0 bg-transparent border-b border-primary outline-none text-xs px-1 py-0.5"
+        />
+      )}
+    </div>
+  );
+}
+
+export function getColumns({ subjectMap, levelMap, now, onDelete, onCellUpdate }: ColumnOpts): ColumnDef<ProblemWithAnswers>[] {
   return [
-    {
-      accessorKey: "code",
-      header: ({ column }) => <SortHeader column={column}>Code</SortHeader>,
-      cell: ({ getValue }) => <span className="font-mono text-xs">{getValue<string>()}</span>,
-    },
     {
       accessorKey: "name",
       header: ({ column }) => <SortHeader column={column}>Name</SortHeader>,
-      cell: ({ getValue }) => <span className="max-w-[200px] truncate block">{getValue<string>()}</span>,
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.name}
+          onSave={(v) => onCellUpdate(row.original.id, "name", (v as string).trim() || null)}
+          className="max-w-[200px] truncate"
+        />
+      ),
+    },
+    {
+      accessorKey: "code",
+      header: ({ column }) => <SortHeader column={column}>Code</SortHeader>,
+      cell: ({ row }) => (
+        <EditableCell
+          value={row.original.code}
+          onSave={(v) => onCellUpdate(row.original.id, "code", v)}
+          className="font-mono"
+        />
+      ),
+      size: 80,
     },
     {
       id: "subject",
@@ -80,6 +163,29 @@ export function getColumns({ subjectMap, levelMap, now, onDelete }: ColumnOpts):
         if (!info?.name) return null;
         return <OpaqueTag name={info.name} color={info.color} />;
       },
+    },
+    {
+      id: "standardTime",
+      accessorFn: (row) => row.standard_time,
+      header: ({ column }) => <SortHeader column={column}>Std</SortHeader>,
+      cell: ({ row }) => {
+        const sec = row.original.standard_time;
+        return (
+          <EditableCell
+            value={sec}
+            display={
+              sec != null
+                ? <span className="tabular-nums">{Math.floor(sec / 60)}:{String(sec % 60).padStart(2, "0")}</span>
+                : undefined
+            }
+            format={(v) => (v != null ? secondsToHms(v as number) : "")}
+            parse={(s) => (s.trim() ? hmsToSeconds(s.trim()) : null)}
+            onSave={(v) => onCellUpdate(row.original.id, "standard_time", v)}
+            className="tabular-nums"
+          />
+        );
+      },
+      sortUndefined: "last",
     },
     {
       id: "answerCount",

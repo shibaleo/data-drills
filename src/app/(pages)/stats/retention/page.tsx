@@ -11,9 +11,15 @@ import {
   type SortingState,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { usePageTitle } from "@/lib/page-context";
 import {
   buildRetentionMeta,
@@ -36,8 +42,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { AnswerStatus } from "@/lib/types";
-
-const MAX_LINES = 30;
 
 interface DDProblem {
   id: string;
@@ -110,6 +114,7 @@ interface RowData {
   code: string;
   name: string;
   subjectName: string;
+  levelName: string;
   answerCount: number;
   retention: number;
   color: string;
@@ -185,6 +190,15 @@ const columns: ColumnDef<RowData>[] = [
     ),
   },
   {
+    accessorKey: "levelName",
+    header: ({ column }) => <SortHeader column={column}>Level</SortHeader>,
+    cell: ({ getValue }) => (
+      <span className="text-xs text-muted-foreground">
+        {getValue<string>()}
+      </span>
+    ),
+  },
+  {
     accessorKey: "answerCount",
     header: ({ column }) => <SortHeader column={column}>Ans</SortHeader>,
     cell: ({ getValue }) => (
@@ -223,13 +237,15 @@ const columns: ColumnDef<RowData>[] = [
 
 export default function RetentionDetailPage() {
   usePageTitle("保持率推移");
-  const { currentProject, subjects, statuses, filterSubjectId } = useProject();
+  const { currentProject, subjects, levels, statuses } = useProject();
   const [allMetas, setAllMetas] = useState<ProblemRetentionMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "retention", desc: false },
   ]);
+  const [filterSubjects, setFilterSubjects] = useState<Set<string>>(new Set());
+  const [filterLevels, setFilterLevels] = useState<Set<string>>(new Set());
 
   const now = useMemo(() => new Date(), []);
 
@@ -256,6 +272,12 @@ export default function RetentionDetailPage() {
     for (const s of subjects) m.set(s.id, s.name);
     return m;
   }, [subjects]);
+
+  const levelNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const l of levels) m.set(l.id, l.name);
+    return m;
+  }, [levels]);
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
@@ -289,6 +311,7 @@ export default function RetentionDetailPage() {
           p.code,
           p.name ?? "",
           p.subjectId ?? "",
+          p.levelId ?? "",
           answersByProblem.get(p.id) ?? [],
           now,
         );
@@ -307,21 +330,14 @@ export default function RetentionDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // Filter by subject, sort by lowest retention, cap at MAX_LINES
+  // Filter by subject + level
   const visible = useMemo(() => {
-    let list = allMetas;
-    if (filterSubjectId) {
-      list = list.filter((m) => m.subjectId === filterSubjectId);
-    }
-    return [...list]
-      .sort((a, b) => a.currentRetention - b.currentRetention)
-      .slice(0, MAX_LINES);
-  }, [allMetas, filterSubjectId]);
-
-  const totalFiltered = useMemo(() => {
-    if (!filterSubjectId) return allMetas.length;
-    return allMetas.filter((m) => m.subjectId === filterSubjectId).length;
-  }, [allMetas, filterSubjectId]);
+    return allMetas.filter((m) => {
+      if (filterSubjects.size > 0 && !filterSubjects.has(m.subjectId)) return false;
+      if (filterLevels.size > 0 && !filterLevels.has(m.levelId)) return false;
+      return true;
+    });
+  }, [allMetas, filterSubjects, filterLevels]);
 
   // Color map
   const problemColorMap = useMemo(() => {
@@ -373,11 +389,12 @@ export default function RetentionDetailPage() {
         code: m.code,
         name: m.name,
         subjectName: subjectNameMap.get(m.subjectId) ?? "",
+        levelName: levelNameMap.get(m.levelId) ?? "",
         answerCount: m.dated.length,
         retention: m.currentRetention,
         color: problemColorMap.get(m.problemId) ?? "#888",
       })),
-    [visible, subjectNameMap, problemColorMap],
+    [visible, subjectNameMap, levelNameMap, problemColorMap],
   );
 
   const table = useReactTable({
@@ -400,7 +417,7 @@ export default function RetentionDetailPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 flex flex-col flex-1 min-h-0 gap-4">
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">
           Loading...
@@ -409,13 +426,77 @@ export default function RetentionDetailPage() {
         <div className="text-center py-12 text-muted-foreground">No data</div>
       ) : (
         <>
-          <div className="text-xs text-muted-foreground">
-            保持率が低い順に {visible.length} / {totalFiltered} 問題を表示
+          <div className="flex items-center gap-3 flex-wrap shrink-0">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="h-8 w-[160px] justify-between text-xs font-normal">
+                  {filterSubjects.size === 0
+                    ? "All Subjects"
+                    : `${filterSubjects.size} Subject${filterSubjects.size > 1 ? "s" : ""}`}
+                  <ChevronsUpDown className="ml-1 size-3 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-2 max-h-60 overflow-y-auto">
+                {subjects.map((s) => (
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm hover:bg-accent cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={filterSubjects.has(s.id)}
+                      onCheckedChange={(checked) => {
+                        setFilterSubjects((prev) => {
+                          const next = new Set(prev);
+                          if (checked) next.add(s.id);
+                          else next.delete(s.id);
+                          return next;
+                        });
+                      }}
+                    />
+                    {s.name}
+                  </label>
+                ))}
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="h-8 w-[160px] justify-between text-xs font-normal">
+                  {filterLevels.size === 0
+                    ? "All Levels"
+                    : `${filterLevels.size} Level${filterLevels.size > 1 ? "s" : ""}`}
+                  <ChevronsUpDown className="ml-1 size-3 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-2 max-h-60 overflow-y-auto">
+                {levels.map((l) => (
+                  <label
+                    key={l.id}
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm hover:bg-accent cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={filterLevels.has(l.id)}
+                      onCheckedChange={(checked) => {
+                        setFilterLevels((prev) => {
+                          const next = new Set(prev);
+                          if (checked) next.add(l.id);
+                          else next.delete(l.id);
+                          return next;
+                        });
+                      }}
+                    />
+                    {l.name}
+                  </label>
+                ))}
+              </PopoverContent>
+            </Popover>
+            <span className="text-xs text-muted-foreground">
+              {visible.length} 問題
+            </span>
           </div>
 
           <ChartContainer
             config={chartConfig}
-            className="h-[50vh] min-h-[250px] w-full"
+            className="h-[35vh] min-h-[200px] w-full shrink-0"
           >
             <LineChart
               data={chartData}
@@ -464,8 +545,8 @@ export default function RetentionDetailPage() {
             </LineChart>
           </ChartContainer>
 
-          {/* Problems table */}
-          <div className="rounded-md border overflow-x-auto">
+          {/* Problems table — scrolls independently */}
+          <div className="flex-1 min-h-0 rounded-md border overflow-y-auto overflow-x-auto">
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((hg) => (

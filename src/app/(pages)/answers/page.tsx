@@ -22,6 +22,7 @@ interface DDProblem {
   subjectId: string | null;
   levelId: string | null;
   checkpoint: string | null;
+  standardTime: number | null;
   projectId: string;
   createdAt: string;
   updatedAt: string;
@@ -190,6 +191,7 @@ export default function AnswersPage() {
         subject_id: p.subjectId ?? "",
         level_id: p.levelId ?? "",
         checkpoint: p.checkpoint,
+        standard_time: p.standardTime ?? null,
         project_id: p.projectId,
         created_at: p.createdAt,
         updated_at: p.updatedAt,
@@ -353,6 +355,7 @@ export default function AnswersPage() {
           subjectId: editProblem.subject_id,
           levelId: editProblem.level_id,
           checkpoint: editProblem.checkpoint,
+          standardTime: editProblem.standard_time,
         } : null}
         projectId={currentProject.id}
         subjects={subjects}
