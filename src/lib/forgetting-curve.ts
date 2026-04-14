@@ -35,10 +35,11 @@ export function computeStability(qualities: number[]): number {
     if (q >= 3) {
       // Good recall → stability grows
       S *= 1 + (q - 2) * 0.4 // q=3→1.4x, q=4→1.8x, q=5→2.2x
-    } else {
-      // Poor recall → stability shrinks but doesn't fully reset
+    } else if (q <= 1) {
+      // No recall (Yet) → stability shrinks but doesn't fully reset
       S = Math.max(BASE_STABILITY, S * 0.5)
     }
+    // q=2 (Repeat) → stability unchanged
   }
   return S
 }

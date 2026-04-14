@@ -8,6 +8,7 @@ import {
   BarChart3,
   Clock,
   FileText,
+  Info,
   LayoutGrid,
   Layers,
   List,
@@ -40,6 +41,7 @@ const navItems: NavItem[] = [
   { href: "/topics", label: "Topics", icon: List },
   { href: "/tags", label: "Tags", icon: Tag, dividerAfter: true },
   { href: "/masters", label: "Masters", icon: LayoutGrid },
+  { href: "/about", label: "About", icon: Info },
 ];
 
 export function SidebarNav({

@@ -7,11 +7,12 @@ import type { ProblemWithAnswers } from "@/components/problem-card";
 import { computeForgettingInfo } from "@/lib/forgetting-curve";
 import { secondsToHms, hmsToSeconds } from "@/lib/duration";
 import { toJSTDate } from "@/lib/date-utils";
+import { problemColor } from "@/lib/problem-color";
 import { Button } from "@/components/ui/button";
 
 const TAG_BASE = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs";
 
-function OpaqueTag({ name, color }: { name: string; color: string | null }) {
+export function OpaqueTag({ name, color }: { name: string; color: string | null }) {
   if (!color) {
     return <span className={`${TAG_BASE} bg-muted text-muted-foreground`}>{name}</span>;
   }
@@ -36,7 +37,7 @@ interface ColumnOpts {
   onCellUpdate: (id: string, field: string, value: unknown) => void;
 }
 
-function SortHeader({ column, children }: { column: { getIsSorted: () => false | "asc" | "desc"; toggleSorting: (desc: boolean) => void }; children: React.ReactNode }) {
+export function SortHeader({ column, children }: { column: { getIsSorted: () => false | "asc" | "desc"; toggleSorting: (desc: boolean) => void }; children: React.ReactNode }) {
   const sorted = column.getIsSorted();
   return (
     <Button
@@ -121,6 +122,20 @@ function EditableCell({
 
 export function getColumns({ subjectMap, levelMap, now, onDelete, onCellUpdate }: ColumnOpts): ColumnDef<ProblemWithAnswers>[] {
   return [
+    {
+      id: "color",
+      cell: ({ row }) => {
+        const subjectColor = subjectMap.get(row.original.subject_id)?.color ?? null;
+        const color = problemColor(row.original.code, row.original.name ?? "", subjectColor);
+        return (
+          <div
+            className="size-2.5 rounded-full"
+            style={{ backgroundColor: color }}
+          />
+        );
+      },
+      size: 32,
+    },
     {
       accessorKey: "name",
       header: ({ column }) => <SortHeader column={column}>Name</SortHeader>,

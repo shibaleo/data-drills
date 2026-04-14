@@ -12,6 +12,7 @@ import {
   buildAverageRetentionSeries,
   type ProblemRetentionMeta,
 } from "@/lib/retention-series";
+import { BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -158,6 +159,26 @@ export default function StatsPage() {
           </CardContent>
         </Card>
       )}
+
+        {/* Score dashboard card */}
+        {!loading && (
+          <Card
+            className="cursor-pointer transition-colors hover:bg-card/90"
+            onClick={() => router.push("/stats/score")}
+          >
+            <CardHeader>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <BarChart3 className="size-4" />
+                スコアダッシュボード
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                FSRS準拠のスコア計算・復習スケジュール · クリックで詳細
+              </p>
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }

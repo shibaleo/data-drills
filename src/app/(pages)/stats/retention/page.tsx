@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
@@ -11,7 +11,7 @@ import {
   type SortingState,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, ChevronsUpDown, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import {
@@ -32,6 +32,8 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { problemColor as computeProblemColor } from "@/lib/problem-color";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -41,7 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { AnswerStatus } from "@/lib/types";
+import { ANSWER_STATUSES, type AnswerStatus } from "@/lib/types";
 
 interface DDProblem {
   id: string;
@@ -56,50 +58,6 @@ interface DDAnswer {
   problemId: string;
   date: string;
   answerStatusId: string | null;
-}
-
-/* ── Color helpers ── */
-
-function hashToColor(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    hash = hash & hash;
-  }
-  const r = (hash >> 16) & 0xff;
-  const g = (hash >> 8) & 0xff;
-  const b = hash & 0xff;
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-}
-
-function parseHex(hex: string): [number, number, number] {
-  const h = hex.replace("#", "");
-  return [
-    parseInt(h.slice(0, 2), 16),
-    parseInt(h.slice(2, 4), 16),
-    parseInt(h.slice(4, 6), 16),
-  ];
-}
-
-function toHex(r: number, g: number, b: number): string {
-  const c = (v: number) =>
-    Math.round(Math.min(255, Math.max(0, v)))
-      .toString(16)
-      .padStart(2, "0");
-  return `#${c(r)}${c(g)}${c(b)}`;
-}
-
-/** hash(20%) + subject(80%), then +20% white */
-function problemColor(hashHex: string, subjectHex: string): string {
-  const [hr, hg, hb] = parseHex(hashHex);
-  const [sr, sg, sb] = parseHex(subjectHex);
-  const mr = hr * 0.2 + sr * 0.8;
-  const mg = hg * 0.2 + sg * 0.8;
-  const mb = hb * 0.2 + sb * 0.8;
-  const fr = mr * 0.8 + 255 * 0.2;
-  const fg = mg * 0.8 + 255 * 0.2;
-  const fb = mb * 0.8 + 255 * 0.2;
-  return toHex(fr, fg, fb);
 }
 
 function formatDate(dateStr: string) {
@@ -246,6 +204,10 @@ export default function RetentionDetailPage() {
   ]);
   const [filterSubjects, setFilterSubjects] = useState<Set<string>>(new Set());
   const [filterLevels, setFilterLevels] = useState<Set<string>>(new Set());
+  const [filterStatuses, setFilterStatuses] = useState<Set<string>>(() => new Set(["Yet"]));
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const now = useMemo(() => new Date(), []);
 
@@ -330,24 +292,26 @@ export default function RetentionDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // Filter by subject + level
+  // Filter by subject + level + last status
   const visible = useMemo(() => {
     return allMetas.filter((m) => {
       if (filterSubjects.size > 0 && !filterSubjects.has(m.subjectId)) return false;
       if (filterLevels.size > 0 && !filterLevels.has(m.levelId)) return false;
+      if (filterStatuses.size > 0 && filterStatuses.size < ANSWER_STATUSES.length) {
+        const lastStatus = m.dated[m.dated.length - 1]?.status;
+        if (!lastStatus || !filterStatuses.has(lastStatus)) return false;
+      }
       return true;
     });
-  }, [allMetas, filterSubjects, filterLevels]);
+  }, [allMetas, filterSubjects, filterLevels, filterStatuses]);
 
   // Color map
   const problemColorMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const meta of visible) {
-      const hashed = hashToColor(meta.code + meta.name);
-      const subjectColor = subjectColorMap.get(meta.subjectId);
       m.set(
         meta.problemId,
-        subjectColor ? problemColor(hashed, subjectColor) : hashed,
+        computeProblemColor(meta.code, meta.name, subjectColorMap.get(meta.subjectId) ?? null),
       );
     }
     return m;
@@ -367,8 +331,13 @@ export default function RetentionDetailPage() {
     }
     return [...dateMap.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
+      .filter(([date]) => {
+        if (dateFrom && date < dateFrom) return false;
+        if (dateTo && date > dateTo) return false;
+        return true;
+      })
       .map(([date, vals]) => ({ date, ...vals }));
-  }, [visible, now]);
+  }, [visible, now, dateFrom, dateTo]);
 
   const chartConfig = useMemo(() => {
     const cfg: ChartConfig = {};
@@ -405,6 +374,13 @@ export default function RetentionDetailPage() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
+
+  // Scroll selected row into view
+  useEffect(() => {
+    if (!selectedId || !tableRef.current) return;
+    const row = tableRef.current.querySelector(`[data-problem-id="${selectedId}"]`);
+    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selectedId]);
 
   if (!currentProject) {
     return (
@@ -489,7 +465,63 @@ export default function RetentionDetailPage() {
                 ))}
               </PopoverContent>
             </Popover>
-            <span className="text-xs text-muted-foreground">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="h-8 w-[160px] justify-between text-xs font-normal">
+                  {filterStatuses.size === 0 || filterStatuses.size === ANSWER_STATUSES.length
+                    ? "All Statuses"
+                    : `${filterStatuses.size} Status${filterStatuses.size > 1 ? "es" : ""}`}
+                  <ChevronsUpDown className="ml-1 size-3 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-2 max-h-60 overflow-y-auto">
+                {ANSWER_STATUSES.map((s) => (
+                  <label
+                    key={s}
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm hover:bg-accent cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={filterStatuses.has(s)}
+                      onCheckedChange={(checked) => {
+                        setFilterStatuses((prev) => {
+                          const next = new Set(prev);
+                          if (checked) next.add(s);
+                          else next.delete(s);
+                          return next;
+                        });
+                      }}
+                    />
+                    {s}
+                  </label>
+                ))}
+              </PopoverContent>
+            </Popover>
+            <div className="ml-auto flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-8 w-[140px] text-xs"
+            />
+            <span className="text-xs text-muted-foreground">~</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-8 w-[140px] text-xs"
+            />
+            {(dateFrom || dateTo) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+              >
+                <X className="size-3.5" />
+              </Button>
+            )}
+            </div>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
               {visible.length} 問題
             </span>
           </div>
@@ -501,6 +533,26 @@ export default function RetentionDetailPage() {
             <LineChart
               data={chartData}
               margin={{ left: 0, right: 8, top: 4, bottom: 0 }}
+              onClick={(e) => {
+                if (!e?.activePayload?.length) return;
+                const payload = e.activePayload[0]?.payload as Record<string, unknown> | undefined;
+                if (!payload) return;
+                const chartY = e.chartY ?? 0;
+                const offset = (e as unknown as { offset?: { top: number; height: number } }).offset;
+                // Compute retention value at click position
+                const plotH = offset?.height;
+                const plotTop = offset?.top ?? 0;
+                const clickedRet = plotH ? (1 - (chartY - plotTop) / plotH) * 100 : null;
+                let bestId: string | null = null;
+                let bestDist = Infinity;
+                for (const m of visible) {
+                  const val = payload[m.problemId];
+                  if (typeof val !== "number") continue;
+                  const dist = clickedRet !== null ? Math.abs(val - clickedRet) : 0;
+                  if (dist < bestDist) { bestDist = dist; bestId = m.problemId; }
+                }
+                if (bestId) setSelectedId((prev) => prev === bestId ? null : bestId);
+              }}
             >
               <CartesianGrid vertical={false} />
               <XAxis
@@ -539,6 +591,7 @@ export default function RetentionDetailPage() {
                     strokeWidth={selectedId === m.problemId ? 2.5 : 1.5}
                     strokeOpacity={dimmed ? 0.1 : 1}
                     dot={false}
+                    activeDot={{ r: 3, cursor: "pointer" }}
                   />
                 );
               })}
@@ -546,7 +599,7 @@ export default function RetentionDetailPage() {
           </ChartContainer>
 
           {/* Problems table — scrolls independently */}
-          <div className="flex-1 min-h-0 rounded-md border overflow-y-auto overflow-x-auto">
+          <div ref={tableRef} className="flex-1 min-h-0 rounded-md border overflow-y-auto overflow-x-auto">
             <Table>
               <TableHeader>
                 {table.getHeaderGroups().map((hg) => (
@@ -569,6 +622,7 @@ export default function RetentionDetailPage() {
                   <TableRow
                     key={row.id}
                     className="cursor-pointer"
+                    data-problem-id={row.original.problemId}
                     data-state={
                       selectedId === row.original.problemId
                         ? "selected"
