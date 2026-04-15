@@ -33,7 +33,7 @@ export function ProblemPdfHeaderLink({ problemFiles }: { problemFiles?: ProblemF
       title="PDF を別タブで表示"
       className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 hover:text-primary transition-colors"
     >
-      <FileText className="size-3" />
+      <FileText className="size-3.5" />
     </a>
   )
 }
@@ -101,7 +101,7 @@ export function ProblemPdfLink({ problemFiles, problemId, onLinked, startActions
             title="PDF を再連携"
             className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors disabled:opacity-50"
           >
-            {linking ? <Loader2 className="size-3 animate-spin" /> : <Link className="size-3" />}
+            {linking ? <Loader2 className="size-3.5 animate-spin" /> : <Link className="size-3.5" />}
           </button>
           <div className="ml-auto flex items-center">
             <a
@@ -111,7 +111,7 @@ export function ProblemPdfLink({ problemFiles, problemId, onLinked, startActions
               title="PDF を別タブで表示"
               className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/50 hover:text-primary transition-colors"
             >
-              <FileText className="size-3" />
+              <FileText className="size-3.5" />
             </a>
             <button
               type="button"
@@ -147,7 +147,7 @@ export function ProblemPdfLink({ problemFiles, problemId, onLinked, startActions
         title="PDF を登録"
         className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/50 hover:text-muted-foreground transition-colors disabled:opacity-50"
       >
-        {linking ? <Loader2 className="size-3 animate-spin" /> : <Link className="size-3" />}
+        {linking ? <Loader2 className="size-3.5 animate-spin" /> : <Link className="size-3.5" />}
       </button>
       {endActions && <div className="ml-auto flex items-center">{endActions}</div>}
     </div>

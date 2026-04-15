@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SITE_NAME } from "@/lib/site";
 import {
   BarChart3,
+  CalendarDays,
   Clock,
   FileText,
   Info,
@@ -19,6 +20,11 @@ import {
   Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api-client";
+import { useProject } from "@/hooks/use-project";
+import { computeNextReview } from "@/lib/fsrs";
+import type { DDProblem, DDAnswer } from "@/lib/api-types";
+import type { AnswerStatus } from "@/lib/types";
 import { UserMenu } from "./user-menu";
 
 const EXPANDED_WIDTH = 224;
@@ -29,6 +35,65 @@ interface NavItem {
   label: string;
   icon: typeof PenLine;
   dividerAfter?: boolean;
+  Badge?: React.ComponentType;
+}
+
+/* ── Overdue badge ── */
+
+function OverdueBadge() {
+  const { currentProject, statuses } = useProject();
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!currentProject || statuses.length === 0) return;
+    const sMap = new Map<string, string>();
+    for (const s of statuses) sMap.set(s.id, s.name);
+
+    api
+      .get<{ data: { problems: DDProblem[]; answers: DDAnswer[] } }>(
+        `/problems-detail?project_id=${currentProject.id}`,
+      )
+      .then((res) => {
+        const { problems, answers } = res.data;
+        const byProblem = new Map<string, DDAnswer[]>();
+        for (const a of answers) {
+          const list = byProblem.get(a.problemId) ?? [];
+          list.push(a);
+          byProblem.set(a.problemId, list);
+        }
+        const today = new Date().toISOString().slice(0, 10);
+        let n = 0;
+        for (const p of problems) {
+          const pa = byProblem.get(p.id) ?? [];
+          if (pa.length === 0) {
+            n++;
+            continue;
+          }
+          const sorted = [...pa].sort((a, b) => a.date.localeCompare(b.date));
+          const latest = sorted[sorted.length - 1];
+          const st =
+            (latest.answerStatusId
+              ? (sMap.get(latest.answerStatusId) as AnswerStatus)
+              : null) ?? "Yet";
+          const nr = computeNextReview(
+            latest.date,
+            st,
+            p.standardTime,
+            latest.duration,
+          );
+          if (nr <= today) n++;
+        }
+        setCount(n);
+      })
+      .catch(() => {});
+  }, [currentProject, statuses]);
+
+  if (count <= 0) return null;
+  return (
+    <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-0.5 text-[10px] font-bold leading-none text-destructive-foreground">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
 }
 
 const navItems: NavItem[] = [
@@ -37,6 +102,7 @@ const navItems: NavItem[] = [
   { href: "/answers", label: "Answers", icon: PenLine },
   { href: "/problems", label: "Problems", icon: TableProperties },
   { href: "/stats", label: "Stats", icon: BarChart3 },
+  { href: "/stats/schedule", label: "Schedule", icon: CalendarDays, Badge: OverdueBadge },
   { href: "/notes", label: "Notes", icon: FileText },
   { href: "/topics", label: "Topics", icon: List },
   { href: "/tags", label: "Tags", icon: Tag, dividerAfter: true },
@@ -58,7 +124,15 @@ export function SidebarNav({
       <nav className="flex-1 p-2 overflow-y-auto">
         <div className="space-y-0.5">
           {navItems.map((item) => {
-            const active = pathname.startsWith(item.href);
+            // More specific nav items take priority (e.g. /stats/schedule over /stats)
+            const active =
+              pathname.startsWith(item.href) &&
+              !navItems.some(
+                (other) =>
+                  other.href.length > item.href.length &&
+                  other.href.startsWith(item.href) &&
+                  pathname.startsWith(other.href),
+              );
             return (
               <div key={item.href}>
                 <Link
@@ -72,7 +146,10 @@ export function SidebarNav({
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                   )}
                 >
-                  <item.icon className="size-4 shrink-0" />
+                  <div className="relative shrink-0">
+                    <item.icon className="size-4" />
+                    {item.Badge && <item.Badge />}
+                  </div>
                   <span
                     className={cn(
                       "whitespace-nowrap transition-opacity duration-200",

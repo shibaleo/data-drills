@@ -3,13 +3,13 @@
 import type { RefObject } from 'react'
 import { ArrowUp, ArrowDown, Plus, Pencil, Trash2 } from 'lucide-react'
 import type { Problem, Answer, Review } from '@/lib/types'
-import { parseDuration, fmtDiff } from '@/lib/duration'
-import { toJSTDate, jstDayDiff } from '@/lib/date-utils'
+import { parseDuration, fmtDiff, secondsToHms } from '@/lib/duration'
+import { toJSTDate, jstDayDiff, todayJST } from '@/lib/date-utils'
 import { computeForgettingInfo } from '@/lib/forgetting-curve'
+import { computeNextReview } from '@/lib/fsrs'
 import { useLookup } from '@/hooks/use-project'
 import { Markdown } from '@/components/markdown'
 import { DurationSparkline } from '@/components/duration-sparkline'
-import { RetentionBar } from '@/components/retention-bar'
 import { ProblemPdfLink } from '@/components/problem-pdf-link'
 import { StatusTag } from '@/components/color-tags'
 import { Card, CardContent } from '@/components/ui/card'
@@ -126,10 +126,24 @@ export function ProblemCard({
   )
   const info = computeForgettingInfo(p.answers, now)
 
+  const nextReviewInfo = (() => {
+    if (answers.length === 0 || !answers[0].date || !answers[0].status) return null
+    const latest = answers[0]
+    const durSec = parseDuration(latest.duration)
+    const nextReview = computeNextReview(latest.date!, latest.status!, p.standard_time, durSec)
+    const today = todayJST()
+    const diff = Math.round(
+      (new Date(nextReview).getTime() - new Date(today).getTime()) / 86_400_000,
+    )
+    return { date: nextReview, diff }
+  })()
+
   const content = (
     <div className="relative space-y-3">
         {/* Header: code + edit (left) | subject, level (right) */}
         <div className="flex items-center gap-1.5 text-xs">
+          <OpaqueTag name={lookup.subjectName(p.subject_id)} color={lookup.subjectColor(p.subject_id) || null} />
+          <OpaqueTag name={lookup.levelName(p.level_id)} color={lookup.levelColor(p.level_id) || null} />
           <span className="font-mono font-medium text-sm whitespace-nowrap">{p.code}</span>
           <button
             type="button"
@@ -139,10 +153,9 @@ export function ProblemCard({
           >
             <Pencil className="size-3" />
           </button>
-          <div className="ml-auto flex items-center gap-1.5">
-            <OpaqueTag name={lookup.subjectName(p.subject_id)} color={lookup.subjectColor(p.subject_id) || null} />
-            <OpaqueTag name={lookup.levelName(p.level_id)} color={lookup.levelColor(p.level_id) || null} />
-          </div>
+          {p.standard_time != null && (
+            <span className="text-[10px] font-mono text-foreground/50">{secondsToHms(p.standard_time)}</span>
+          )}
         </div>
 
         {p.name && (
@@ -151,16 +164,40 @@ export function ProblemCard({
           </div>
         )}
 
-        {/* Retention bar + Sparkline */}
+        {/* Retention bar + schedule info + Sparkline */}
         {info ? (
-          <div className="-mt-1 flex items-end overflow-visible">
-            <RetentionBar info={info} />
-            <div className="ml-auto opacity-60 leading-[0]">
-              <DurationSparkline durations={answers.slice().reverse().map((a) => a.duration)} />
+          <div className="-mt-1 flex items-center gap-2 overflow-visible">
+            <div className="h-1.5 w-16 shrink-0 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${Math.round(info.retention * 100)}%`,
+                  backgroundColor: `hsl(${info.retention * 120}, 80%, 50%)`,
+                }}
+              />
+            </div>
+            <span className="text-[10px] font-medium text-foreground/60 whitespace-nowrap">
+              {Math.round(info.retention * 100)}%
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-[10px] text-foreground/50 whitespace-nowrap">
+                最終解答 {info.elapsedDays < 1 ? '今日' : `${Math.round(info.elapsedDays)}日前`}
+              </span>
+              {nextReviewInfo && (
+                <span className="text-[10px] text-foreground/50 whitespace-nowrap">
+                  次回 {nextReviewInfo.date}
+                  <span className={nextReviewInfo.diff <= 0 ? ' text-destructive font-medium' : ''}>
+                    {nextReviewInfo.diff === 0 ? '（今日）' : nextReviewInfo.diff > 0 ? `（${nextReviewInfo.diff}日後）` : `（${Math.abs(nextReviewInfo.diff)}日超過）`}
+                  </span>
+                </span>
+              )}
+              <div className="opacity-60 leading-[0]">
+                <DurationSparkline durations={answers.slice().reverse().map((a) => a.duration)} />
+              </div>
             </div>
           </div>
         ) : (
-          <div className="flex items-end overflow-visible">
+          <div className="flex items-center overflow-visible">
             <span className="text-[10px] text-muted-foreground">未回答</span>
             <div className="ml-auto opacity-60 leading-[0]">
               <DurationSparkline durations={answers.slice().reverse().map((a) => a.duration)} />
@@ -178,6 +215,8 @@ export function ProblemCard({
         {/* Answers — timeline style */}
         {answers.length > 0 && (
           <div className="relative ml-5">
+            {/* Continuous vertical timeline line */}
+            <div className="absolute left-[-1px] -translate-x-1/2 top-3 bottom-1.5 w-0.5 bg-border" />
             {answers.map((a, i) => {
               const reviews = [...a.reviews].sort(
                 (x, y) => (x.created_at ?? '').localeCompare(y.created_at ?? ''),
@@ -190,15 +229,12 @@ export function ProblemCard({
                 <div key={a.id}>
                   {dayGap !== null && dayGap > 0 && (
                     <div className="relative h-5">
-                      <div className="absolute left-[-1px] -translate-x-1/2 top-0 bottom-0 w-0.5 bg-border" />
                       <span className="absolute left-[-1px] -translate-x-1/2 top-1/2 -translate-y-1/2 bg-card px-1.5 text-[10px] text-foreground/60 whitespace-nowrap">
                         {dayGap}日
                       </span>
                     </div>
                   )}
                   <div className="relative pl-9 py-1.5 space-y-2">
-                    {i > 0 && <div className="absolute left-[-1px] -translate-x-1/2 top-0 h-[12px] w-0.5 bg-border" />}
-                    <div className="absolute left-[-1px] -translate-x-1/2 top-[12px] bottom-0 w-0.5 bg-border" />
                     <div className="absolute left-[-1px] -translate-x-1/2 top-[12px] -translate-y-1/2 whitespace-nowrap">
                       {a.status ? <StatusTag status={a.status} color={lookup.statusColor(a.status)} opaque /> : <span className="inline-block size-2 rounded-full bg-foreground/40" />}
                     </div>
@@ -274,7 +310,7 @@ export function ProblemCard({
                   title="削除"
                   className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-colors"
                 >
-                  <Trash2 className="size-3" />
+                  <Trash2 className="size-3.5" />
                 </button>
               )
             }
@@ -285,7 +321,7 @@ export function ProblemCard({
                 title="解答を登録"
                 className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground transition-colors"
               >
-                <Plus className="size-3" />
+                <Plus className="size-3.5" />
               </button>
             }
           />
@@ -298,7 +334,7 @@ export function ProblemCard({
                 title="削除"
                 className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-colors"
               >
-                <Trash2 className="size-3" />
+                <Trash2 className="size-3.5" />
               </button>
             )}
             <button
@@ -307,7 +343,7 @@ export function ProblemCard({
               title="解答を登録"
               className="ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground transition-colors"
             >
-              <Plus className="size-3" />
+              <Plus className="size-3.5" />
             </button>
           </div>
         )}

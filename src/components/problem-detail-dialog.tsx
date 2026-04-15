@@ -1,9 +1,10 @@
 "use client";
 
+import { X } from "lucide-react";
 import { ProblemCard, type ProblemWithAnswers, type AnswerWithReviews } from "@/components/problem-card";
 import type { Problem } from "@/lib/types";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog, DialogContent, DialogClose, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 
 interface ProblemDetailDialogProps {
@@ -33,10 +34,13 @@ export function ProblemDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] overflow-y-auto">
-        <DialogHeader className="sr-only">
-          <DialogTitle>{problem.code} {problem.name}</DialogTitle>
-          <DialogDescription>Problem detail</DialogDescription>
+      <DialogContent hideClose className="max-w-4xl w-[90vw] max-h-[85vh] overflow-y-auto p-4">
+        <DialogHeader className="flex flex-row items-center -mb-4">
+          <DialogTitle className="sr-only">{problem.code} {problem.name}</DialogTitle>
+          <DialogDescription className="sr-only">Problem detail</DialogDescription>
+          <DialogClose className="ml-auto rounded-sm opacity-70 transition-opacity hover:opacity-100">
+            <X className="size-4" />
+          </DialogClose>
         </DialogHeader>
         <ProblemCard
           problem={problem}
