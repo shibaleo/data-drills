@@ -14,7 +14,10 @@ import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { useLookupMaps } from "@/hooks/use-lookup-maps";
 import { usePageTitle } from "@/lib/page-context";
-import type { DDProblem, DDAnswer } from "@/lib/api-types";
+import type { DDProblem, DDAnswer, DDReview, DDReviewTag, DDTag, DDProblemFile } from "@/lib/api-types";
+import type { ProblemWithAnswers } from "@/components/problem-card";
+import type { Answer, Review, ProblemFile } from "@/lib/types";
+import { useProblemDialogs } from "@/hooks/use-problem-dialogs";
 import {
   STATUS_COLORS,
   computeNextReview,
@@ -33,6 +36,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { AnswerStatus } from "@/lib/types";
+
+/* ── Helpers ── */
+
+function secondsToDuration(seconds: number | null): string | null {
+  if (seconds === null) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 /* ── Row type ── */
 
@@ -326,8 +339,9 @@ const columns: ColumnDef<ScheduleRow>[] = [
 export default function SchedulePage() {
   usePageTitle("復習スケジュール");
   const { currentProject } = useProject();
-  const { statusMap, subjectColorMap } = useLookupMaps();
+  const { statusMap, statusPointMap, subjectColorMap } = useLookupMaps();
   const [rows, setRows] = useState<ScheduleRow[]>([]);
+  const [allProblems, setAllProblems] = useState<ProblemWithAnswers[]>([]);
   const [loading, setLoading] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "daysUntil", desc: false },
@@ -343,36 +357,138 @@ export default function SchedulePage() {
     setLoading(true);
     try {
       const res = await api.get<{
-        data: { problems: DDProblem[]; answers: DDAnswer[] };
+        data: {
+          problems: DDProblem[];
+          answers: DDAnswer[];
+          reviews: DDReview[];
+          reviewTags: DDReviewTag[];
+          tags: DDTag[];
+          problemFiles: DDProblemFile[];
+        };
       }>(`/problems-detail?project_id=${currentProject.id}`);
-      const { problems, answers } = res.data;
+      const {
+        problems,
+        answers,
+        reviews: ddReviews,
+        reviewTags: ddReviewTags,
+        tags: ddTags,
+        problemFiles: ddFiles,
+      } = res.data;
 
-      const answersByProblem = new Map<string, DDAnswer[]>();
-      for (const a of answers) {
-        const list = answersByProblem.get(a.problemId) ?? [];
-        list.push(a);
-        answersByProblem.set(a.problemId, list);
+      // Build tag map
+      const tagMap = new Map<string, string>();
+      for (const t of ddTags) tagMap.set(t.id, t.name);
+
+      const reviewTagsMap = new Map<string, string[]>();
+      for (const rt of ddReviewTags) {
+        const list = reviewTagsMap.get(rt.reviewId) ?? [];
+        list.push(tagMap.get(rt.tagId) ?? "");
+        reviewTagsMap.set(rt.reviewId, list);
       }
 
-      const built: ScheduleRow[] = [];
+      // Build reviews by answer
+      const reviewsByAnswer = new Map<string, Review[]>();
+      for (const r of ddReviews) {
+        const tags = reviewTagsMap.get(r.id) ?? [];
+        const ldReview: Review = {
+          id: r.id,
+          content: r.content ?? "",
+          review_type: (tags[0] as Review["review_type"]) ?? null,
+          answer_id: r.answerId,
+          created_at: r.createdAt,
+          updated_at: r.createdAt,
+        };
+        const list = reviewsByAnswer.get(r.answerId) ?? [];
+        list.push(ldReview);
+        reviewsByAnswer.set(r.answerId, list);
+      }
 
+      // Build answers by problem (for ProblemWithAnswers)
+      const answersByProblemFull = new Map<string, (Answer & { reviews: Review[] })[]>();
+      const answersByProblem = new Map<string, DDAnswer[]>();
+      for (const a of answers) {
+        // DD format for schedule rows
+        const ddList = answersByProblem.get(a.problemId) ?? [];
+        ddList.push(a);
+        answersByProblem.set(a.problemId, ddList);
+
+        // Full format for ProblemWithAnswers
+        const ldAnswer: Answer & { reviews: Review[] } = {
+          id: a.id,
+          date: a.date,
+          duration: secondsToDuration(a.duration),
+          status: (a.answerStatusId ? statusMap.get(a.answerStatusId) as AnswerStatus ?? null : null),
+          point: a.answerStatusId ? statusPointMap.get(a.answerStatusId) : undefined,
+          problem_id: a.problemId,
+          created_at: a.createdAt,
+          updated_at: a.createdAt,
+          reviews: reviewsByAnswer.get(a.id) ?? [],
+        };
+        const fullList = answersByProblemFull.get(a.problemId) ?? [];
+        fullList.push(ldAnswer);
+        answersByProblemFull.set(a.problemId, fullList);
+      }
+
+      // Build files by problem
+      const filesByProblem = new Map<string, ProblemFile[]>();
+      for (const f of ddFiles) {
+        const ldFile: ProblemFile = {
+          id: f.id,
+          problem_id: f.problemId,
+          gdrive_file_id: f.gdriveFileId,
+          file_name: f.fileName ?? "",
+          created_at: f.createdAt,
+        };
+        const list = filesByProblem.get(f.problemId) ?? [];
+        list.push(ldFile);
+        filesByProblem.set(f.problemId, list);
+      }
+
+      // Build ProblemWithAnswers[]
+      const combined: ProblemWithAnswers[] = problems.map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name ?? "",
+        subject_id: p.subjectId ?? "",
+        level_id: p.levelId ?? "",
+        checkpoint: p.checkpoint,
+        standard_time: p.standardTime ?? null,
+        project_id: p.projectId,
+        created_at: p.createdAt,
+        updated_at: p.updatedAt,
+        problem_files: filesByProblem.get(p.id),
+        answers: answersByProblemFull.get(p.id) ?? [],
+      }));
+      setAllProblems(combined);
+
+      // Build schedule rows
+      const built: ScheduleRow[] = [];
       for (const p of problems) {
         const pAnswers = answersByProblem.get(p.id) ?? [];
-        if (pAnswers.length === 0) continue;
 
-        const sorted = [...pAnswers].sort((a, b) =>
-          a.date.localeCompare(b.date),
-        );
-        const latest = sorted[sorted.length - 1];
-        const lastStatus =
-          (latest.answerStatusId
-            ? (statusMap.get(latest.answerStatusId) as AnswerStatus)
-            : null) ?? "Yet";
+        let lastStatus: AnswerStatus;
+        let nextReview: string;
+        let daysUntil: number;
 
-        const nextReview = computeNextReview(
-          latest.date, lastStatus, p.standardTime, latest.duration,
-        );
-        const daysUntil = -computeDaysOverdue(nextReview, todayStr);
+        if (pAnswers.length === 0) {
+          // No answers yet → Yet status, review = today
+          lastStatus = "Yet";
+          nextReview = todayStr;
+          daysUntil = 0;
+        } else {
+          const sorted = [...pAnswers].sort((a, b) =>
+            a.date.localeCompare(b.date),
+          );
+          const latest = sorted[sorted.length - 1];
+          lastStatus =
+            (latest.answerStatusId
+              ? (statusMap.get(latest.answerStatusId) as AnswerStatus)
+              : null) ?? "Yet";
+          nextReview = computeNextReview(
+            latest.date, lastStatus, p.standardTime, latest.duration,
+          );
+          daysUntil = -computeDaysOverdue(nextReview, todayStr);
+        }
 
         const color = problemColor(
           p.code,
@@ -389,7 +505,7 @@ export default function SchedulePage() {
           statusColor: STATUS_COLORS[lastStatus],
           nextReview,
           daysUntil,
-          reviewCount: sorted.length,
+          reviewCount: pAnswers.length,
         });
       }
 
@@ -399,15 +515,19 @@ export default function SchedulePage() {
     } finally {
       setLoading(false);
     }
-  }, [currentProject, statusMap, subjectColorMap, todayStr]);
+  }, [currentProject, statusMap, statusPointMap, subjectColorMap, todayStr]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  const { openDetail, renderDialogs } = useProblemDialogs({
+    allProblems,
+    onDataChanged: fetchData,
+  });
+
   const handleSelect = useCallback((problemId: string) => {
     setSelectedId((prev) => (prev === problemId ? null : problemId));
-    // Scroll to the row in the table
     requestAnimationFrame(() => {
       const row = tableRef.current?.querySelector(
         `[data-problem-id="${problemId}"]`,
@@ -415,6 +535,11 @@ export default function SchedulePage() {
       row?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }, []);
+
+  const chartRows = useMemo(
+    () => rows.filter((r) => r.reviewCount > 0),
+    [rows],
+  );
 
   const table = useReactTable({
     data: rows,
@@ -447,7 +572,7 @@ export default function SchedulePage() {
         <>
           {/* Schedule chart */}
           <div className="shrink-0 rounded-md border p-3">
-            <ScheduleChart items={rows} today={todayStr} onSelect={handleSelect} />
+            <ScheduleChart items={chartRows} today={todayStr} onSelect={handleSelect} />
           </div>
 
           {/* Table */}
@@ -479,8 +604,8 @@ export default function SchedulePage() {
                   <TableRow
                     key={row.id}
                     data-problem-id={pid}
-                    className={pid === selectedId ? "bg-accent" : undefined}
-                    onClick={() => setSelectedId((prev) => (prev === pid ? null : pid))}
+                    className={`cursor-pointer ${pid === selectedId ? "bg-accent" : ""}`}
+                    onClick={() => openDetail(pid)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
@@ -498,6 +623,8 @@ export default function SchedulePage() {
           </div>
         </>
       )}
+
+      {renderDialogs()}
     </div>
   );
 }

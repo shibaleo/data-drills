@@ -13,17 +13,13 @@ import {
 } from "@tanstack/react-table";
 import { api, ApiError } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
-import { useAnswerForm, useEditAnswerForm } from "@/hooks/use-answer-form";
 import { usePageTitle } from "@/lib/page-context";
-import { Fab } from "@/components/shared/fab";
-import { ProblemDetailDialog } from "@/components/problem-detail-dialog";
-import { ProblemEditDialog } from "@/components/problem-edit-dialog";
-import { AnswerDialog } from "@/components/answer-dialog";
+import { useProblemDialogs } from "@/hooks/use-problem-dialogs";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getColumns } from "./columns";
 import type { ProblemWithAnswers } from "@/components/problem-card";
-import type { Problem, Answer, AnswerStatus, Review, ProblemFile } from "@/lib/types";
+import type { Answer, AnswerStatus, Review, ProblemFile } from "@/lib/types";
 
 interface DDProblem {
   id: string;
@@ -74,15 +70,6 @@ export default function ProblemsPage() {
   const { currentProject, subjects, levels, statuses, filterSubjectId, filterLevelId } = useProject();
   const [problems, setProblems] = useState<ProblemWithAnswers[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Detail dialog
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailProblemId, setDetailProblemId] = useState<string | null>(null);
-  const detailProblem = detailProblemId ? problems.find(p => p.id === detailProblemId) ?? null : null;
-
-  // Problem edit dialog
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editProblem, setEditProblem] = useState<Problem | null>(null);
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -217,21 +204,16 @@ export default function ProblemsPage() {
     return true;
   }), [problems, filterSubjectId, filterLevelId]);
 
-  // Answer create/edit forms
-  const answerForm = useAnswerForm(() => { fetchData(); });
-  const editForm = useEditAnswerForm(() => { fetchData(); });
-
-  const handleEditProblem = (p: Problem) => {
-    setDetailOpen(false);
-    setEditProblem(p);
-    setEditDialogOpen(true);
-  };
+  // Shared dialogs (detail, edit, answer create/edit, fab)
+  const { openDetail, renderDialogs } = useProblemDialogs({
+    allProblems: problems,
+    onDataChanged: fetchData,
+  });
 
   const handleDeleteProblem = useCallback(async (id: string) => {
     try {
       await api.delete(`/problems/${id}`);
       toast.success("削除しました");
-      setDetailOpen(false);
       fetchData();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.body.error : "削除に失敗しました");
@@ -248,11 +230,6 @@ export default function ProblemsPage() {
       toast.error(e instanceof ApiError ? e.body.error : "更新に失敗しました");
     }
   }, []);
-
-  const handleRowClick = (p: ProblemWithAnswers) => {
-    setDetailProblemId(p.id);
-    setDetailOpen(true);
-  };
 
   const columns = useMemo(
     () => getColumns({ subjectMap, levelMap, now, onDelete: handleDeleteProblem, onCellUpdate: handleCellUpdate }),
@@ -319,7 +296,7 @@ export default function ProblemsPage() {
                     <TableRow
                       key={row.id}
                       className="cursor-pointer"
-                      onClick={() => handleRowClick(row.original)}
+                      onClick={() => openDetail(row.original.id)}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>
@@ -345,98 +322,7 @@ export default function ProblemsPage() {
         </div>
       )}
 
-      {/* Problem detail dialog (ProblemCard) */}
-      <ProblemDetailDialog
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        problem={detailProblem}
-        now={now}
-        onEditProblem={handleEditProblem}
-        onEditAnswer={(answer, problem) => {
-          setDetailOpen(false);
-          editForm.openFor(answer, problem);
-        }}
-        onCheck={(problem) => {
-          setDetailOpen(false);
-          answerForm.openForProblem(problem as Problem & { answers: { date: string | null; status: AnswerStatus | null }[] });
-        }}
-        onDelete={handleDeleteProblem}
-        onPdfLinked={() => fetchData()}
-      />
-
-      {/* Problem edit dialog */}
-      <ProblemEditDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        problem={editProblem ? {
-          id: editProblem.id,
-          code: editProblem.code,
-          name: editProblem.name,
-          subjectId: editProblem.subject_id,
-          levelId: editProblem.level_id,
-          checkpoint: editProblem.checkpoint,
-          standardTime: editProblem.standard_time,
-        } : null}
-        projectId={currentProject.id}
-        subjects={subjects}
-        levels={levels}
-        onSaved={() => { setEditDialogOpen(false); fetchData(); }}
-        onDelete={editProblem ? () => handleDeleteProblem(editProblem.id) : undefined}
-      />
-
-      {/* Answer create dialog */}
-      <AnswerDialog
-        open={answerForm.open}
-        onOpenChange={answerForm.setOpen}
-        title="解答を登録"
-        subject={answerForm.subject}
-        onSubjectChange={answerForm.setSubject}
-        level={answerForm.level}
-        onLevelChange={answerForm.setLevel}
-        code={answerForm.code}
-        onCodeChange={answerForm.setCode}
-        codeSuggestions={answerForm.codeSuggestions}
-        checkpointMap={answerForm.checkpointMap}
-        nameMap={answerForm.nameMap}
-        status={answerForm.status}
-        onStatusChange={answerForm.setStatus}
-        duration={answerForm.duration}
-        onDurationChange={answerForm.setDuration}
-        reviews={answerForm.reviews}
-        onAddReview={answerForm.addReview}
-        onUpdateReview={answerForm.updateReview}
-        onRemoveReview={answerForm.removeReview}
-        saveLabel="登録"
-        onSave={answerForm.save}
-      />
-
-      {/* Answer edit dialog */}
-      <AnswerDialog
-        open={editForm.open}
-        onOpenChange={editForm.setOpen}
-        title="解答を編集"
-        subject={editForm.subject}
-        onSubjectChange={editForm.setSubject}
-        level={editForm.level}
-        onLevelChange={editForm.setLevel}
-        code={editForm.code}
-        onCodeChange={editForm.setCode}
-        codeSuggestions={editForm.codeSuggestions}
-        checkpointMap={editForm.checkpointMap}
-        nameMap={editForm.nameMap}
-        status={editForm.status}
-        onStatusChange={editForm.setStatus}
-        duration={editForm.duration}
-        onDurationChange={editForm.setDuration}
-        reviews={editForm.reviews}
-        onAddReview={editForm.addReview}
-        onUpdateReview={editForm.updateReview}
-        onRemoveReview={editForm.removeReview}
-        saveLabel="保存"
-        onSave={editForm.save}
-      />
-
-      <Fab onClick={() => { setEditProblem(null); setEditDialogOpen(true); }} />
+      {renderDialogs()}
     </div>
   );
 }
