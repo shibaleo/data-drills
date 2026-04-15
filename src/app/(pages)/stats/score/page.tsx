@@ -23,7 +23,9 @@ import {
 } from "@tanstack/react-table";
 import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
+import { useLookupMaps } from "@/hooks/use-lookup-maps";
 import { usePageTitle } from "@/lib/page-context";
+import type { DDProblem, DDAnswer, DDReview, DDReviewTag, DDTag, DDProblemFile, ProblemsDetailResponse } from "@/lib/api-types";
 import {
   STATUS_COLORS,
   computeScore,
@@ -53,44 +55,6 @@ import {
 } from "@/components/ui/table";
 import { ProblemCard, type ProblemWithAnswers } from "@/components/problem-card";
 import { ANSWER_STATUSES, type AnswerStatus, type Answer, type Review, type ProblemFile } from "@/lib/types";
-
-/* ── API types ── */
-
-interface DDProblem {
-  id: string;
-  code: string;
-  name: string | null;
-  subjectId: string | null;
-  levelId: string | null;
-  checkpoint: string | null;
-  standardTime: number | null;
-  projectId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-interface DDAnswer {
-  id: string;
-  problemId: string;
-  date: string;
-  duration: number | null;
-  answerStatusId: string | null;
-  createdAt: string;
-}
-interface DDReview {
-  id: string;
-  answerId: string;
-  content: string | null;
-  createdAt: string;
-}
-interface DDReviewTag { reviewId: string; tagId: string; }
-interface DDTag { id: string; name: string; }
-interface DDProblemFile {
-  id: string;
-  problemId: string;
-  gdriveFileId: string;
-  fileName: string | null;
-  createdAt: string;
-}
 
 function secondsToDuration(seconds: number | null): string | null {
   if (seconds === null) return null;
@@ -245,7 +209,8 @@ function ScoreTooltipContent({
 
 export default function ScoreDashboardPage() {
   usePageTitle("スコアダッシュボード");
-  const { currentProject, statuses, subjects } = useProject();
+  const { currentProject } = useProject();
+  const { statusMap, statusPointMap, subjectColorMap } = useLookupMaps();
   const [rows, setRows] = useState<RowData[]>([]);
   const [problemMap, setProblemMap] = useState<Map<string, ProblemWithAnswers>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -258,38 +223,11 @@ export default function ScoreDashboardPage() {
   const now = useMemo(() => new Date(), []);
   const todayStr = useMemo(() => toJSTDateString(now), [now]);
 
-  const statusMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of statuses) m.set(s.id, s.name);
-    return m;
-  }, [statuses]);
-
-  const statusPointMap = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of statuses) m.set(s.id, s.point ?? 0);
-    return m;
-  }, [statuses]);
-
-  const subjectColorMap = useMemo(() => {
-    const m = new Map<string, string | null>();
-    for (const s of subjects) m.set(s.id, s.color ?? null);
-    return m;
-  }, [subjects]);
-
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const res = await api.get<{
-        data: {
-          problems: DDProblem[];
-          answers: DDAnswer[];
-          reviews: DDReview[];
-          reviewTags: DDReviewTag[];
-          tags: DDTag[];
-          problemFiles: DDProblemFile[];
-        };
-      }>(`/problems-detail?project_id=${currentProject.id}`);
+      const res = await api.get<{ data: ProblemsDetailResponse }>(`/problems-detail?project_id=${currentProject.id}`);
       const { problems, answers, reviews, reviewTags, tags, problemFiles } = res.data;
 
       // Build tag map

@@ -12,7 +12,7 @@ import {
   buildAverageRetentionSeries,
   type ProblemRetentionMeta,
 } from "@/lib/retention-series";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
@@ -21,21 +21,8 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import type { AnswerStatus } from "@/lib/types";
-
-interface DDProblem {
-  id: string;
-  code: string;
-  name: string | null;
-  subjectId: string | null;
-  levelId: string | null;
-  projectId: string;
-}
-interface DDAnswer {
-  id: string;
-  problemId: string;
-  date: string;
-  answerStatusId: string | null;
-}
+import type { DDProblem, DDAnswer } from "@/lib/api-types";
+import { useLookupMaps } from "@/hooks/use-lookup-maps";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -45,23 +32,12 @@ function formatDate(dateStr: string) {
 export default function StatsPage() {
   usePageTitle("Stats");
   const router = useRouter();
-  const { currentProject, statuses, filterSubjectId } = useProject();
+  const { currentProject, filterSubjectId } = useProject();
+  const { statusMap, statusPointMap } = useLookupMaps();
   const [metas, setMetas] = useState<ProblemRetentionMeta[]>([]);
   const [loading, setLoading] = useState(true);
 
   const now = useMemo(() => new Date(), []);
-
-  const statusMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of statuses) m.set(s.id, s.name);
-    return m;
-  }, [statuses]);
-
-  const statusPointMap = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of statuses) m.set(s.id, s.point ?? 0);
-    return m;
-  }, [statuses]);
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
@@ -175,6 +151,26 @@ export default function StatsPage() {
             <CardContent>
               <p className="text-xs text-muted-foreground">
                 FSRS準拠のスコア計算・復習スケジュール · クリックで詳細
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Schedule card */}
+        {!loading && (
+          <Card
+            className="cursor-pointer transition-colors hover:bg-card/90"
+            onClick={() => router.push("/stats/schedule")}
+          >
+            <CardHeader>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <CalendarDays className="size-4" />
+                復習スケジュール
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">
+                次回復習日の一覧とタイムライン · クリックで詳細
               </p>
             </CardContent>
           </Card>

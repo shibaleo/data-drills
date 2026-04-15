@@ -26,7 +26,7 @@ const TIME_COEFF_C = 0.5
 
 /** Stability initial value (days until R=90%) per status */
 export const STATUS_STABILITY: Record<AnswerStatus, number> = {
-  Yet: 2,
+  Yet: 0,
   Repeat: 7,
   Check: 29,
   Recall: 65,

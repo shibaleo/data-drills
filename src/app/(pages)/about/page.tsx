@@ -6,6 +6,7 @@ import "katex/dist/katex.min.css";
 import { usePageTitle } from "@/lib/page-context";
 import {
   STATUS_STABILITY,
+  STATUS_COLORS,
 } from "@/lib/fsrs";
 import type { AnswerStatus } from "@/lib/types";
 
@@ -156,10 +157,11 @@ export default function AboutPage() {
       <article className="prose prose-sm prose-invert max-w-none space-y-6">
         {/* ── 評価の定義 ── */}
         <section>
-          <h2 className="text-base font-semibold mb-2">評価（ステータス）</h2>
+          <h2 className="text-base font-semibold mb-2">ステータス（評価）</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            各問題の解答後に自己評価として付けるステータスです。
-            「あと何日くらいこの結果を再現できそうか」を主観で判断します。
+            ステータスは各問題の解答後に自己評価される、問題ごとの状態です。<br />
+            不正解の場合はすべて <span style={{ color: STATUS_COLORS.Yet }}>Yet</span> と評価されます。<br />
+            正解の場合は「あと何日くらいこの結果を再現できそうか」を主観で評価します。
           </p>
           <table className="text-xs mt-2 w-full">
             <thead>
@@ -209,11 +211,14 @@ export default function AboutPage() {
                 {`P_i = \\left(\\frac{I_i}{I_{\\max}}\\right)^{\\gamma} \\times 100`}
               </TexBlock>
               <p className="text-xs text-muted-foreground -mt-1 mb-1">
-                <Tex>{"I_i"}</Tex>: 各評価の復習間隔（<Tex>{"i"}</Tex> = Repeat, Check, Recall, Done）
+                <Tex>{"I_i"}</Tex>: 各評価の復習間隔（<Tex>{"i"}</Tex> = Yet, Repeat, Check, Recall, Done）
               </p>
               <p className="text-sm text-foreground mt-1">
                 <Tex>{"\\gamma"}</Tex> ={" "}
                 <V value={ceExponent} onChange={setCeExponent} fmt={(v) => String(v)} />
+                <span className="text-xs text-muted-foreground ml-2">
+                  Stevens&apos; Power Law — 復習間隔と直感的な点数を対応させる指数
+                </span>
               </p>
               <table className="text-xs w-full mt-1">
                 <thead>
@@ -259,10 +264,7 @@ export default function AboutPage() {
               </p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            <Tex>{"\\gamma"}</Tex> は復習間隔と直感的な点数が対応するように調整するべき指数（Stevens&apos; Power Law）。
-          </p>
-          <p className="text-sm text-muted-foreground leading-relaxed mt-2">
+          <p className="text-sm text-muted-foreground leading-relaxed mt-3">
             <Tex>{"\\text{Score} \\geq 100"}</Tex> が基礎問題の完成基準です。
           </p>
         </section>

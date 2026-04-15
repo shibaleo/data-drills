@@ -14,6 +14,8 @@ import {
 import { ArrowUpDown, ArrowUp, ArrowDown, ChevronsUpDown, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
+import { useLookupMaps } from "@/hooks/use-lookup-maps";
+import type { DDProblem, DDAnswer } from "@/lib/api-types";
 import {
   Popover,
   PopoverContent,
@@ -44,21 +46,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ANSWER_STATUSES, type AnswerStatus } from "@/lib/types";
-
-interface DDProblem {
-  id: string;
-  code: string;
-  name: string | null;
-  subjectId: string | null;
-  levelId: string | null;
-  projectId: string;
-}
-interface DDAnswer {
-  id: string;
-  problemId: string;
-  date: string;
-  answerStatusId: string | null;
-}
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -195,7 +182,8 @@ const columns: ColumnDef<RowData>[] = [
 
 export default function RetentionDetailPage() {
   usePageTitle("保持率推移");
-  const { currentProject, subjects, levels, statuses } = useProject();
+  const { currentProject, subjects, levels } = useProject();
+  const { statusMap, statusPointMap, subjectColorMap } = useLookupMaps();
   const [allMetas, setAllMetas] = useState<ProblemRetentionMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -210,24 +198,6 @@ export default function RetentionDetailPage() {
   const tableRef = useRef<HTMLDivElement>(null);
 
   const now = useMemo(() => new Date(), []);
-
-  const statusMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of statuses) m.set(s.id, s.name);
-    return m;
-  }, [statuses]);
-
-  const statusPointMap = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of statuses) m.set(s.id, s.point ?? 0);
-    return m;
-  }, [statuses]);
-
-  const subjectColorMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of subjects) m.set(s.id, s.color ?? "");
-    return m;
-  }, [subjects]);
 
   const subjectNameMap = useMemo(() => {
     const m = new Map<string, string>();
