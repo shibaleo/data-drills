@@ -92,19 +92,26 @@ export function getStability(status: AnswerStatus): number {
 
 /**
  * Compute next review date from last answer date and status.
- * Returns ISO date string "YYYY-MM-DD", or null for Yet (no scheduled review).
+ * When standardTimeSec and durationSec are provided, stability is adjusted:
+ *   adjustedStability = base × C_T,  C_T = c × t_std / t_dur
+ * Reference point: t_dur = t_std/2 → C_T = 1 (unchanged from base).
  */
 export function computeNextReview(
   lastDateStr: string,
   status: AnswerStatus,
+  standardTimeSec?: number | null,
+  durationSec?: number | null,
 ): string {
-  const s = getStability(status)
+  let s = getStability(status)
   if (s <= 0) {
     // Yet → immediate review needed (next = last answer date)
     return lastDateStr.slice(0, 10)
   }
+  if (standardTimeSec && durationSec && durationSec > 0) {
+    s = s * TIME_COEFF_C * standardTimeSec / durationSec
+  }
   const d = new Date(lastDateStr)
-  d.setDate(d.getDate() + s)
+  d.setDate(d.getDate() + Math.round(s))
   return d.toISOString().slice(0, 10)
 }
 

@@ -369,7 +369,9 @@ export default function SchedulePage() {
             ? (statusMap.get(latest.answerStatusId) as AnswerStatus)
             : null) ?? "Yet";
 
-        const nextReview = computeNextReview(latest.date, lastStatus);
+        const nextReview = computeNextReview(
+          latest.date, lastStatus, p.standardTime, latest.duration,
+        );
         const daysUntil = -computeDaysOverdue(nextReview, todayStr);
 
         const color = problemColor(

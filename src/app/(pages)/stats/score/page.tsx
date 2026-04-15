@@ -325,7 +325,9 @@ export default function ScoreDashboardPage() {
         );
 
         // Next review & overdue
-        const nextReview = computeNextReview(latest.date, lastStatus);
+        const nextReview = computeNextReview(
+          latest.date, lastStatus, p.standardTime, latest.duration,
+        );
         const daysOverdue = computeDaysOverdue(nextReview, todayStr);
 
         // Time ratio = duration / standardTime
