@@ -11,17 +11,12 @@ import {
   type SortingState,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown, ChevronsUpDown, X } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { useLookupMaps } from "@/hooks/use-lookup-maps";
 import type { DDProblem, DDAnswer } from "@/lib/api-types";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CheckboxFilter } from "@/components/shared/checkbox-filter";
 import { usePageTitle } from "@/lib/page-context";
 import {
   buildRetentionMeta,
@@ -373,99 +368,27 @@ export default function RetentionDetailPage() {
       ) : (
         <>
           <div className="flex items-center gap-3 flex-wrap shrink-0">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="h-8 w-[160px] justify-between text-xs font-normal">
-                  {filterSubjects.size === 0
-                    ? "All Subjects"
-                    : `${filterSubjects.size} Subject${filterSubjects.size > 1 ? "s" : ""}`}
-                  <ChevronsUpDown className="ml-1 size-3 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="p-2 max-h-60 overflow-y-auto">
-                {subjects.map((s) => (
-                  <label
-                    key={s.id}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm hover:bg-accent cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={filterSubjects.has(s.id)}
-                      onCheckedChange={(checked) => {
-                        setFilterSubjects((prev) => {
-                          const next = new Set(prev);
-                          if (checked) next.add(s.id);
-                          else next.delete(s.id);
-                          return next;
-                        });
-                      }}
-                    />
-                    {s.name}
-                  </label>
-                ))}
-              </PopoverContent>
-            </Popover>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="h-8 w-[160px] justify-between text-xs font-normal">
-                  {filterLevels.size === 0
-                    ? "All Levels"
-                    : `${filterLevels.size} Level${filterLevels.size > 1 ? "s" : ""}`}
-                  <ChevronsUpDown className="ml-1 size-3 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="p-2 max-h-60 overflow-y-auto">
-                {levels.map((l) => (
-                  <label
-                    key={l.id}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm hover:bg-accent cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={filterLevels.has(l.id)}
-                      onCheckedChange={(checked) => {
-                        setFilterLevels((prev) => {
-                          const next = new Set(prev);
-                          if (checked) next.add(l.id);
-                          else next.delete(l.id);
-                          return next;
-                        });
-                      }}
-                    />
-                    {l.name}
-                  </label>
-                ))}
-              </PopoverContent>
-            </Popover>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="h-8 w-[160px] justify-between text-xs font-normal">
-                  {filterStatuses.size === 0 || filterStatuses.size === ANSWER_STATUSES.length
-                    ? "All Statuses"
-                    : `${filterStatuses.size} Status${filterStatuses.size > 1 ? "es" : ""}`}
-                  <ChevronsUpDown className="ml-1 size-3 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="p-2 max-h-60 overflow-y-auto">
-                {ANSWER_STATUSES.map((s) => (
-                  <label
-                    key={s}
-                    className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm hover:bg-accent cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={filterStatuses.has(s)}
-                      onCheckedChange={(checked) => {
-                        setFilterStatuses((prev) => {
-                          const next = new Set(prev);
-                          if (checked) next.add(s);
-                          else next.delete(s);
-                          return next;
-                        });
-                      }}
-                    />
-                    {s}
-                  </label>
-                ))}
-              </PopoverContent>
-            </Popover>
+            <CheckboxFilter
+              items={subjects.map((s) => ({ value: s.id, label: s.name }))}
+              selected={filterSubjects}
+              onChange={setFilterSubjects}
+              allLabel="All Subjects"
+              width="w-[160px]"
+            />
+            <CheckboxFilter
+              items={levels.map((l) => ({ value: l.id, label: l.name }))}
+              selected={filterLevels}
+              onChange={setFilterLevels}
+              allLabel="All Levels"
+              width="w-[160px]"
+            />
+            <CheckboxFilter
+              items={ANSWER_STATUSES.map((s) => ({ value: s, label: s }))}
+              selected={filterStatuses}
+              onChange={setFilterStatuses}
+              allLabel="All Statuses"
+              width="w-[160px]"
+            />
             <div className="ml-auto flex items-center gap-2">
             <Input
               type="date"

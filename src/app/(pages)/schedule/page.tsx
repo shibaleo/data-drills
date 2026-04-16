@@ -18,11 +18,7 @@ import type { DDProblem, DDAnswer, DDReview, DDReviewTag, DDTag, DDProblemFile }
 import { OpaqueTag, type ProblemWithAnswers } from "@/components/problem-card";
 import type { Answer, Review, ProblemFile } from "@/lib/types";
 import { useProblemDialogs } from "@/hooks/use-problem-dialogs";
-import {
-  STATUS_COLORS,
-  computeNextReview,
-  computeDaysOverdue,
-} from "@/lib/fsrs";
+import { STATUS_COLORS } from "@/lib/fsrs";
 import { problemColor } from "@/lib/problem-color";
 import { SortHeader } from "@/app/(pages)/problems/columns";
 import { toJSTDateString } from "@/lib/date-utils";
@@ -36,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { AnswerStatus } from "@/lib/types";
+import { CheckboxFilter } from "@/components/shared/checkbox-filter";
 
 /* ── Helpers ── */
 
@@ -53,8 +50,10 @@ interface ScheduleRow {
   problemId: string;
   code: string;
   name: string;
+  subjectId: string | null;
   subjectName: string;
   subjectColor: string | null;
+  levelId: string | null;
   levelName: string;
   levelColor: string | null;
   color: string;
@@ -63,6 +62,21 @@ interface ScheduleRow {
   nextReview: string;
   daysUntil: number;
   reviewCount: number;
+}
+
+/* ── Schedule API response ── */
+
+interface ScheduleApiRow {
+  problemId: string;
+  code: string;
+  name: string;
+  subjectId: string | null;
+  levelId: string | null;
+  lastStatus: AnswerStatus;
+  nextReview: string;
+  daysUntil: number;
+  answerCount: number;
+  color: string;
 }
 
 /* ── Schedule Chart (SVG) ── */
@@ -125,7 +139,6 @@ function ScheduleChart({
     const minDate = allDates.reduce((a, b) => (a < b ? a : b));
     const maxDate = allDates.reduce((a, b) => (a > b ? a : b));
 
-    // Extend range: at least 7 days before min and 14 days after max
     const rangeStart = addDays(minDate < today ? minDate : today, -7);
     const rangeEnd = addDays(maxDate > today ? maxDate : today, 14);
 
@@ -155,7 +168,6 @@ function ScheduleChart({
   const chartHeight = maxStack * STEP + TOP_AXIS_H + BOTTOM_AXIS_H;
   const Y_AXIS_W = 28;
 
-  // Y-axis tick values (every 5)
   const yTicks = useMemo(() => {
     const ticks: number[] = [];
     for (let i = 5; i <= maxStack; i += 5) ticks.push(i);
@@ -164,12 +176,7 @@ function ScheduleChart({
 
   return (
     <div className="flex">
-      {/* Y-axis labels (fixed, not scrolling) */}
-      <svg
-        width={Y_AXIS_W}
-        height={chartHeight}
-        className="block shrink-0"
-      >
+      <svg width={Y_AXIS_W} height={chartHeight} className="block shrink-0">
         {yTicks.map((n) => (
           <text
             key={n}
@@ -185,11 +192,7 @@ function ScheduleChart({
         ))}
       </svg>
       <div ref={scrollRef} className="overflow-x-auto pb-2 flex-1 min-w-0">
-      <svg
-        width={chartWidth}
-        height={chartHeight}
-        className="block"
-      >
+      <svg width={chartWidth} height={chartHeight} className="block">
         {/* Today vertical line */}
         {todayIdx >= 0 && (
           <line
@@ -210,6 +213,17 @@ function ScheduleChart({
 
           return (
             <g key={date}>
+              {/* Today column highlight */}
+              {isToday && (
+                <rect
+                  x={x - 1}
+                  y={TOP_AXIS_H}
+                  width={CELL + 2}
+                  height={maxStack * STEP}
+                  fill="hsl(var(--foreground))"
+                  opacity={0.06}
+                />
+              )}
               {/* Empty background blocks */}
               {Array.from({ length: maxStack }, (_, i) => (
                 <rect
@@ -300,6 +314,43 @@ function ScheduleChart({
       </svg>
       </div>
     </div>
+  );
+}
+
+/* ── Summary Card ── */
+
+type SummaryFilter = "overdue" | "today" | "week";
+
+function SummaryCard({
+  label,
+  count,
+  active,
+  onClick,
+  variant,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+  variant: "destructive" | "default" | "muted";
+}) {
+  const base = "flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors select-none";
+  const variants = {
+    destructive: active
+      ? "bg-red-500/15 border-red-500/40 text-red-500"
+      : "hover:bg-red-500/5 text-red-500/70",
+    default: active
+      ? "bg-foreground/10 border-foreground/30 text-foreground"
+      : "hover:bg-foreground/5 text-foreground/70",
+    muted: active
+      ? "bg-accent border-accent-foreground/20 text-accent-foreground"
+      : "hover:bg-muted text-muted-foreground",
+  };
+  return (
+    <button type="button" className={`${base} ${variants[variant]}`} onClick={onClick}>
+      <span>{label}</span>
+      <span className="tabular-nums font-bold">{count}</span>
+    </button>
   );
 }
 
@@ -398,6 +449,7 @@ export default function SchedulePage() {
   usePageTitle("復習スケジュール");
   const { currentProject, subjects, levels } = useProject();
   const { statusMap, statusPointMap, subjectColorMap } = useLookupMaps();
+
   const subjectNameMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of subjects) m.set(s.id, s.name);
@@ -413,9 +465,15 @@ export default function SchedulePage() {
     for (const l of levels) m.set(l.id, l.color ?? null);
     return m;
   }, [levels]);
+
+  // Schedule data (fast path via /schedule API)
   const [rows, setRows] = useState<ScheduleRow[]>([]);
-  const [allProblems, setAllProblems] = useState<ProblemWithAnswers[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Dialog data (background path via /problems-detail)
+  const [allProblems, setAllProblems] = useState<ProblemWithAnswers[]>([]);
+
+  // UI state
   const [sorting, setSorting] = useState<SortingState>([
     { id: "daysUntil", desc: false },
   ]);
@@ -423,12 +481,55 @@ export default function SchedulePage() {
   const [chartColorMode, setChartColorMode] = useState<ChartColorMode>("problem");
   const tableRef = useRef<HTMLDivElement>(null);
 
+  // Filter state
+  const [summaryFilter, setSummaryFilter] = useState<SummaryFilter | null>(null);
+  const [filterSubjects, setFilterSubjects] = useState<Set<string>>(new Set());
+  const [filterLevels, setFilterLevels] = useState<Set<string>>(new Set());
+  const [filterStatuses, setFilterStatuses] = useState<Set<string>>(new Set());
+
   const now = useMemo(() => new Date(), []);
   const todayStr = useMemo(() => toJSTDateString(now), [now]);
 
-  const fetchData = useCallback(async () => {
+  /* ── Fast path: /schedule API ── */
+  const fetchSchedule = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
+    try {
+      const res = await api.get<{ data: ScheduleApiRow[] }>(
+        `/schedule?project_id=${currentProject.id}`,
+      );
+      const built: ScheduleRow[] = res.data.map((r) => {
+        const sc = r.subjectId ? subjectColorMap.get(r.subjectId) ?? null : null;
+        const color = sc ? problemColor(r.code, r.name, sc) : r.color;
+        return {
+          problemId: r.problemId,
+          code: r.code,
+          name: r.name,
+          subjectId: r.subjectId,
+          subjectName: r.subjectId ? subjectNameMap.get(r.subjectId) ?? "" : "",
+          subjectColor: sc,
+          levelId: r.levelId,
+          levelName: r.levelId ? levelNameMap.get(r.levelId) ?? "" : "",
+          levelColor: r.levelId ? levelColorMap.get(r.levelId) ?? null : null,
+          color,
+          lastStatus: r.lastStatus,
+          statusColor: STATUS_COLORS[r.lastStatus],
+          nextReview: r.nextReview,
+          daysUntil: r.daysUntil,
+          reviewCount: r.answerCount,
+        };
+      });
+      setRows(built);
+    } catch {
+      toast.error("Failed to fetch schedule");
+    } finally {
+      setLoading(false);
+    }
+  }, [currentProject, subjectColorMap, subjectNameMap, levelNameMap, levelColorMap]);
+
+  /* ── Background: /problems-detail for dialogs ── */
+  const fetchDialogData = useCallback(async () => {
+    if (!currentProject) return;
     try {
       const res = await api.get<{
         data: {
@@ -440,169 +541,106 @@ export default function SchedulePage() {
           problemFiles: DDProblemFile[];
         };
       }>(`/problems-detail?project_id=${currentProject.id}`);
-      const {
-        problems,
-        answers,
-        reviews: ddReviews,
-        reviewTags: ddReviewTags,
-        tags: ddTags,
-        problemFiles: ddFiles,
-      } = res.data;
+      const { problems, answers, reviews: ddReviews, reviewTags: ddReviewTags, tags: ddTags, problemFiles: ddFiles } = res.data;
 
-      // Build tag map
       const tagMap = new Map<string, string>();
       for (const t of ddTags) tagMap.set(t.id, t.name);
-
       const reviewTagsMap = new Map<string, string[]>();
       for (const rt of ddReviewTags) {
         const list = reviewTagsMap.get(rt.reviewId) ?? [];
         list.push(tagMap.get(rt.tagId) ?? "");
         reviewTagsMap.set(rt.reviewId, list);
       }
-
-      // Build reviews by answer
       const reviewsByAnswer = new Map<string, Review[]>();
       for (const r of ddReviews) {
         const tags = reviewTagsMap.get(r.id) ?? [];
         const ldReview: Review = {
-          id: r.id,
-          content: r.content ?? "",
+          id: r.id, content: r.content ?? "",
           review_type: (tags[0] as Review["review_type"]) ?? null,
-          answer_id: r.answerId,
-          created_at: r.createdAt,
-          updated_at: r.createdAt,
+          answer_id: r.answerId, created_at: r.createdAt, updated_at: r.createdAt,
         };
         const list = reviewsByAnswer.get(r.answerId) ?? [];
         list.push(ldReview);
         reviewsByAnswer.set(r.answerId, list);
       }
-
-      // Build answers by problem (for ProblemWithAnswers)
-      const answersByProblemFull = new Map<string, (Answer & { reviews: Review[] })[]>();
-      const answersByProblem = new Map<string, DDAnswer[]>();
+      const answersByProblem = new Map<string, (Answer & { reviews: Review[] })[]>();
       for (const a of answers) {
-        // DD format for schedule rows
-        const ddList = answersByProblem.get(a.problemId) ?? [];
-        ddList.push(a);
-        answersByProblem.set(a.problemId, ddList);
-
-        // Full format for ProblemWithAnswers
         const ldAnswer: Answer & { reviews: Review[] } = {
-          id: a.id,
-          date: a.date,
-          duration: secondsToDuration(a.duration),
+          id: a.id, date: a.date, duration: secondsToDuration(a.duration),
           status: (a.answerStatusId ? statusMap.get(a.answerStatusId) as AnswerStatus ?? null : null),
           point: a.answerStatusId ? statusPointMap.get(a.answerStatusId) : undefined,
-          problem_id: a.problemId,
-          created_at: a.createdAt,
-          updated_at: a.createdAt,
+          problem_id: a.problemId, created_at: a.createdAt, updated_at: a.createdAt,
           reviews: reviewsByAnswer.get(a.id) ?? [],
         };
-        const fullList = answersByProblemFull.get(a.problemId) ?? [];
-        fullList.push(ldAnswer);
-        answersByProblemFull.set(a.problemId, fullList);
+        const list = answersByProblem.get(a.problemId) ?? [];
+        list.push(ldAnswer);
+        answersByProblem.set(a.problemId, list);
       }
-
-      // Build files by problem
       const filesByProblem = new Map<string, ProblemFile[]>();
       for (const f of ddFiles) {
         const ldFile: ProblemFile = {
-          id: f.id,
-          problem_id: f.problemId,
-          gdrive_file_id: f.gdriveFileId,
-          file_name: f.fileName ?? "",
-          created_at: f.createdAt,
+          id: f.id, problem_id: f.problemId, gdrive_file_id: f.gdriveFileId,
+          file_name: f.fileName ?? "", created_at: f.createdAt,
         };
         const list = filesByProblem.get(f.problemId) ?? [];
         list.push(ldFile);
         filesByProblem.set(f.problemId, list);
       }
-
-      // Build ProblemWithAnswers[]
-      const combined: ProblemWithAnswers[] = problems.map((p) => ({
-        id: p.id,
-        code: p.code,
-        name: p.name ?? "",
-        subject_id: p.subjectId ?? "",
-        level_id: p.levelId ?? "",
-        checkpoint: p.checkpoint,
-        standard_time: p.standardTime ?? null,
-        project_id: p.projectId,
-        created_at: p.createdAt,
-        updated_at: p.updatedAt,
+      setAllProblems(problems.map((p) => ({
+        id: p.id, code: p.code, name: p.name ?? "",
+        subject_id: p.subjectId ?? "", level_id: p.levelId ?? "",
+        checkpoint: p.checkpoint, standard_time: p.standardTime ?? null,
+        project_id: p.projectId, created_at: p.createdAt, updated_at: p.updatedAt,
         problem_files: filesByProblem.get(p.id),
-        answers: answersByProblemFull.get(p.id) ?? [],
-      }));
-      setAllProblems(combined);
-
-      // Build schedule rows
-      const built: ScheduleRow[] = [];
-      for (const p of problems) {
-        const pAnswers = answersByProblem.get(p.id) ?? [];
-
-        let lastStatus: AnswerStatus;
-        let nextReview: string;
-        let daysUntil: number;
-
-        if (pAnswers.length === 0) {
-          // No answers yet → Yet status, review = today
-          lastStatus = "Yet";
-          nextReview = todayStr;
-          daysUntil = 0;
-        } else {
-          const sorted = [...pAnswers].sort((a, b) =>
-            a.date.localeCompare(b.date),
-          );
-          const latest = sorted[sorted.length - 1];
-          lastStatus =
-            (latest.answerStatusId
-              ? (statusMap.get(latest.answerStatusId) as AnswerStatus)
-              : null) ?? "Yet";
-          nextReview = computeNextReview(
-            latest.date, lastStatus, p.standardTime, latest.duration,
-          );
-          daysUntil = -computeDaysOverdue(nextReview, todayStr);
-        }
-
-        const color = problemColor(
-          p.code,
-          p.name ?? "",
-          p.subjectId ? subjectColorMap.get(p.subjectId) ?? null : null,
-        );
-
-        built.push({
-          problemId: p.id,
-          code: p.code,
-          name: p.name ?? "",
-          subjectName: p.subjectId ? subjectNameMap.get(p.subjectId) ?? "" : "",
-          subjectColor: p.subjectId ? subjectColorMap.get(p.subjectId) ?? null : null,
-          levelName: p.levelId ? levelNameMap.get(p.levelId) ?? "" : "",
-          levelColor: p.levelId ? levelColorMap.get(p.levelId) ?? null : null,
-          color,
-          lastStatus,
-          statusColor: STATUS_COLORS[lastStatus],
-          nextReview,
-          daysUntil,
-          reviewCount: pAnswers.length,
-        });
-      }
-
-      setRows(built);
+        answers: answersByProblem.get(p.id) ?? [],
+      })));
     } catch {
-      toast.error("Failed to fetch data");
-    } finally {
-      setLoading(false);
+      // Dialog data is non-critical
     }
-  }, [currentProject, statusMap, statusPointMap, subjectColorMap, subjectNameMap, levelNameMap, levelColorMap, todayStr]);
+  }, [currentProject, statusMap, statusPointMap]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  // Fetch schedule first (fast), then dialog data in background
+  useEffect(() => { fetchSchedule(); }, [fetchSchedule]);
+  useEffect(() => { if (currentProject) fetchDialogData(); }, [currentProject, fetchDialogData]);
+
+  const handleDataChanged = useCallback(() => {
+    fetchSchedule();
+    fetchDialogData();
+  }, [fetchSchedule, fetchDialogData]);
 
   const { openDetail, renderDialogs } = useProblemDialogs({
     allProblems,
-    onDataChanged: fetchData,
+    onDataChanged: handleDataChanged,
   });
+
+  /* ── Filtered rows ── */
+
+  const baseFilteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (filterSubjects.size > 0 && (!r.subjectId || !filterSubjects.has(r.subjectId))) return false;
+      if (filterLevels.size > 0 && (!r.levelId || !filterLevels.has(r.levelId))) return false;
+      if (filterStatuses.size > 0 && !filterStatuses.has(r.lastStatus)) return false;
+      return true;
+    });
+  }, [rows, filterSubjects, filterLevels, filterStatuses]);
+
+  const summaryCounts = useMemo(() => ({
+    overdue: baseFilteredRows.filter((r) => r.daysUntil < 0).length,
+    today: baseFilteredRows.filter((r) => r.daysUntil === 0).length,
+    week: baseFilteredRows.filter((r) => r.daysUntil > 0 && r.daysUntil <= 7).length,
+  }), [baseFilteredRows]);
+
+  const displayRows = useMemo(() => {
+    if (!summaryFilter) return baseFilteredRows;
+    if (summaryFilter === "overdue") return baseFilteredRows.filter((r) => r.daysUntil < 0);
+    if (summaryFilter === "today") return baseFilteredRows.filter((r) => r.daysUntil === 0);
+    return baseFilteredRows.filter((r) => r.daysUntil > 0 && r.daysUntil <= 7);
+  }, [baseFilteredRows, summaryFilter]);
+
+  const chartRows = useMemo(
+    () => baseFilteredRows.filter((r) => r.reviewCount > 0),
+    [baseFilteredRows],
+  );
 
   const handleSelect = useCallback((problemId: string) => {
     setSelectedId((prev) => (prev === problemId ? null : problemId));
@@ -614,19 +652,20 @@ export default function SchedulePage() {
     });
   }, []);
 
-  const chartRows = useMemo(
-    () => rows.filter((r) => r.reviewCount > 0),
-    [rows],
-  );
-
   const table = useReactTable({
-    data: rows,
+    data: displayRows,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
+
+  const availableStatuses = useMemo(() => {
+    const set = new Set<AnswerStatus>();
+    for (const r of rows) set.add(r.lastStatus);
+    return Array.from(set).sort((a, b) => STATUS_ORDER[a] - STATUS_ORDER[b]);
+  }, [rows]);
 
   if (!currentProject) {
     return (
@@ -641,13 +680,63 @@ export default function SchedulePage() {
   return (
     <div className="p-3 md:p-4 flex flex-col gap-2">
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">
-          Loading...
-        </div>
+        <div className="text-center py-12 text-muted-foreground">Loading...</div>
       ) : rows.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No data</div>
       ) : (
         <>
+          {/* Summary cards + Filters */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <SummaryCard
+              label="期限超過"
+              count={summaryCounts.overdue}
+              active={summaryFilter === "overdue"}
+              onClick={() => setSummaryFilter((p) => p === "overdue" ? null : "overdue")}
+              variant="destructive"
+            />
+            <SummaryCard
+              label="今日"
+              count={summaryCounts.today}
+              active={summaryFilter === "today"}
+              onClick={() => setSummaryFilter((p) => p === "today" ? null : "today")}
+              variant="default"
+            />
+            <SummaryCard
+              label="7日以内"
+              count={summaryCounts.week}
+              active={summaryFilter === "week"}
+              onClick={() => setSummaryFilter((p) => p === "week" ? null : "week")}
+              variant="muted"
+            />
+
+            <div className="h-4 w-px bg-border mx-1" />
+
+            {subjects.length > 0 && (
+              <CheckboxFilter
+                items={subjects.map((s) => ({ value: s.id, label: s.name }))}
+                selected={filterSubjects}
+                onChange={setFilterSubjects}
+                allLabel="All Subjects"
+              />
+            )}
+            {levels.length > 0 && (
+              <CheckboxFilter
+                items={levels.map((l) => ({ value: l.id, label: l.name }))}
+                selected={filterLevels}
+                onChange={setFilterLevels}
+                allLabel="All Levels"
+              />
+            )}
+            {availableStatuses.length > 1 && (
+              <CheckboxFilter
+                items={availableStatuses.map((s) => ({ value: s, label: s }))}
+                selected={filterStatuses}
+                onChange={setFilterStatuses}
+                allLabel="All Statuses"
+              />
+            )}
+          </div>
+
           {/* Schedule chart */}
           <div className="shrink-0 rounded-md border p-3">
             <div className="flex justify-end mb-1">
@@ -686,10 +775,7 @@ export default function SchedulePage() {
                       >
                         {header.isPlaceholder
                           ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                          : flexRender(header.column.columnDef.header, header.getContext())}
                       </TableHead>
                     ))}
                   </TableRow>
@@ -698,11 +784,18 @@ export default function SchedulePage() {
               <TableBody>
                 {table.getRowModel().rows.map((row) => {
                   const pid = row.original.problemId;
+                  const isOverdue = row.original.daysUntil < 0;
                   return (
                   <TableRow
                     key={row.id}
                     data-problem-id={pid}
-                    className={`cursor-pointer ${pid === selectedId ? "bg-accent" : ""}`}
+                    className={`cursor-pointer ${
+                      pid === selectedId
+                        ? "bg-accent"
+                        : isOverdue
+                          ? "bg-red-500/5"
+                          : ""
+                    }`}
                     onClick={() => pid === selectedId ? openDetail(pid) : handleSelect(pid)}
                   >
                     <TableCell className="w-4 px-2">
@@ -713,10 +806,7 @@ export default function SchedulePage() {
                     </TableCell>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id} style={{ width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined }}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
                   </TableRow>
