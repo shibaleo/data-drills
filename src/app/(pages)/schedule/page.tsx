@@ -12,14 +12,9 @@ import {
 } from "@tanstack/react-table";
 import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
-import { useLookupMaps } from "@/hooks/use-lookup-maps";
 import { usePageTitle } from "@/lib/page-context";
-import type { DDProblem, DDAnswer, DDReview, DDReviewTag, DDTag, DDProblemFile } from "@/lib/api-types";
 import { OpaqueTag, type ProblemWithAnswers } from "@/components/problem-card";
-import type { Answer, Review, ProblemFile } from "@/lib/types";
 import { useProblemDialogs } from "@/hooks/use-problem-dialogs";
-import { STATUS_COLORS } from "@/lib/fsrs";
-import { problemColor } from "@/lib/problem-color";
 import { SortHeader } from "@/app/(pages)/problems/columns";
 import { toJSTDateString } from "@/lib/date-utils";
 import { StatusTag } from "@/components/color-tags";
@@ -32,51 +27,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { AnswerStatus } from "@/lib/types";
+import type { ScheduleRow as ScheduleApiRow } from "@/lib/api-responses";
 import { CheckboxFilter } from "@/components/shared/checkbox-filter";
 
-/* ── Helpers ── */
+/* ── Row types ── */
 
-function secondsToDuration(seconds: number | null): string | null {
-  if (seconds === null) return null;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-/* ── Row type ── */
-
-interface ScheduleRow {
-  problemId: string;
-  code: string;
-  name: string;
-  subjectId: string | null;
-  subjectName: string;
-  subjectColor: string | null;
-  levelId: string | null;
-  levelName: string;
-  levelColor: string | null;
-  color: string;
-  lastStatus: AnswerStatus;
-  statusColor: string;
-  nextReview: string;
-  daysUntil: number;
+/** Display row — adds reviewCount for the "next 4 weeks" forecast cell. */
+interface ScheduleRow extends Omit<ScheduleApiRow, "answerCount"> {
   reviewCount: number;
-}
-
-/* ── Schedule API response ── */
-
-interface ScheduleApiRow {
-  problemId: string;
-  code: string;
-  name: string;
-  subjectId: string | null;
-  levelId: string | null;
-  lastStatus: AnswerStatus;
-  nextReview: string;
-  daysUntil: number;
-  answerCount: number;
-  color: string;
 }
 
 /* ── Schedule Chart (SVG) ── */
@@ -395,7 +353,7 @@ const columns: ColumnDef<ScheduleRow>[] = [
         {getValue<string>()}
       </span>
     ),
-    size: 300,
+    size: 270,
   },
   {
     accessorKey: "nextReview",
@@ -436,7 +394,7 @@ const columns: ColumnDef<ScheduleRow>[] = [
         {getValue<number>()}
       </span>
     ),
-    size: 48,
+    size: 64,
   },
 ];
 
@@ -445,29 +403,12 @@ const columns: ColumnDef<ScheduleRow>[] = [
 export default function SchedulePage() {
   usePageTitle("復習スケジュール");
   const { currentProject, subjects, levels } = useProject();
-  const { statusMap, statusPointMap, subjectColorMap } = useLookupMaps();
-
-  const subjectNameMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of subjects) m.set(s.id, s.name);
-    return m;
-  }, [subjects]);
-  const levelNameMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const l of levels) m.set(l.id, l.name);
-    return m;
-  }, [levels]);
-  const levelColorMap = useMemo(() => {
-    const m = new Map<string, string | null>();
-    for (const l of levels) m.set(l.id, l.color ?? null);
-    return m;
-  }, [levels]);
 
   // Schedule data (fast path via /schedule API)
   const [rows, setRows] = useState<ScheduleRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Dialog data (background path via /problems-detail)
+  // Dialog data (background path via /problems-list)
   const [allProblems, setAllProblems] = useState<ProblemWithAnswers[]>([]);
 
   // UI state
@@ -495,106 +436,43 @@ export default function SchedulePage() {
       const res = await api.get<{ data: ScheduleApiRow[] }>(
         `/schedule?project_id=${currentProject.id}`,
       );
-      const built: ScheduleRow[] = res.data.map((r) => {
-        const sc = r.subjectId ? subjectColorMap.get(r.subjectId) ?? null : null;
-        const color = sc ? problemColor(r.code, r.name, sc) : r.color;
-        return {
-          problemId: r.problemId,
-          code: r.code,
-          name: r.name,
-          subjectId: r.subjectId,
-          subjectName: r.subjectId ? subjectNameMap.get(r.subjectId) ?? "" : "",
-          subjectColor: sc,
-          levelId: r.levelId,
-          levelName: r.levelId ? levelNameMap.get(r.levelId) ?? "" : "",
-          levelColor: r.levelId ? levelColorMap.get(r.levelId) ?? null : null,
-          color,
-          lastStatus: r.lastStatus,
-          statusColor: STATUS_COLORS[r.lastStatus],
-          nextReview: r.nextReview,
-          daysUntil: r.daysUntil,
-          reviewCount: r.answerCount,
-        };
-      });
+      const built: ScheduleRow[] = res.data.map((r) => ({
+        problemId: r.problemId,
+        code: r.code,
+        name: r.name,
+        subjectId: r.subjectId,
+        subjectName: r.subjectName,
+        subjectColor: r.subjectColor,
+        levelId: r.levelId,
+        levelName: r.levelName,
+        levelColor: r.levelColor,
+        color: r.color,
+        lastStatus: r.lastStatus,
+        statusColor: r.statusColor,
+        nextReview: r.nextReview,
+        daysUntil: r.daysUntil,
+        reviewCount: r.answerCount,
+      }));
       setRows(built);
     } catch {
       toast.error("Failed to fetch schedule");
     } finally {
       setLoading(false);
     }
-  }, [currentProject, subjectColorMap, subjectNameMap, levelNameMap, levelColorMap]);
+  }, [currentProject]);
 
-  /* ── Background: /problems-detail for dialogs ── */
+  /* ── Background: /problems-list for dialogs ── */
   const fetchDialogData = useCallback(async () => {
     if (!currentProject) return;
     try {
-      const res = await api.get<{
-        data: {
-          problems: DDProblem[];
-          answers: DDAnswer[];
-          reviews: DDReview[];
-          reviewTags: DDReviewTag[];
-          tags: DDTag[];
-          problemFiles: DDProblemFile[];
-        };
-      }>(`/problems-detail?project_id=${currentProject.id}`);
-      const { problems, answers, reviews: ddReviews, reviewTags: ddReviewTags, tags: ddTags, problemFiles: ddFiles } = res.data;
-
-      const tagMap = new Map<string, string>();
-      for (const t of ddTags) tagMap.set(t.id, t.name);
-      const reviewTagsMap = new Map<string, string[]>();
-      for (const rt of ddReviewTags) {
-        const list = reviewTagsMap.get(rt.reviewId) ?? [];
-        list.push(tagMap.get(rt.tagId) ?? "");
-        reviewTagsMap.set(rt.reviewId, list);
-      }
-      const reviewsByAnswer = new Map<string, Review[]>();
-      for (const r of ddReviews) {
-        const tags = reviewTagsMap.get(r.id) ?? [];
-        const ldReview: Review = {
-          id: r.id, content: r.content ?? "",
-          review_type: (tags[0] as Review["review_type"]) ?? null,
-          answer_id: r.answerId, created_at: r.createdAt, updated_at: r.createdAt,
-        };
-        const list = reviewsByAnswer.get(r.answerId) ?? [];
-        list.push(ldReview);
-        reviewsByAnswer.set(r.answerId, list);
-      }
-      const answersByProblem = new Map<string, (Answer & { reviews: Review[] })[]>();
-      for (const a of answers) {
-        const ldAnswer: Answer & { reviews: Review[] } = {
-          id: a.id, date: a.date, duration: secondsToDuration(a.duration),
-          status: (a.answerStatusId ? statusMap.get(a.answerStatusId) as AnswerStatus ?? null : null),
-          point: a.answerStatusId ? statusPointMap.get(a.answerStatusId) : undefined,
-          problem_id: a.problemId, created_at: a.createdAt, updated_at: a.createdAt,
-          reviews: reviewsByAnswer.get(a.id) ?? [],
-        };
-        const list = answersByProblem.get(a.problemId) ?? [];
-        list.push(ldAnswer);
-        answersByProblem.set(a.problemId, list);
-      }
-      const filesByProblem = new Map<string, ProblemFile[]>();
-      for (const f of ddFiles) {
-        const ldFile: ProblemFile = {
-          id: f.id, problem_id: f.problemId, gdrive_file_id: f.gdriveFileId,
-          file_name: f.fileName ?? "", created_at: f.createdAt,
-        };
-        const list = filesByProblem.get(f.problemId) ?? [];
-        list.push(ldFile);
-        filesByProblem.set(f.problemId, list);
-      }
-      setAllProblems(problems.map((p) => ({
-        id: p.id, code: p.code, name: p.name ?? "",
-        subject_id: p.subjectId ?? "", level_id: p.levelId ?? "",
-        checkpoint: p.checkpoint, standard_time: p.standardTime ?? null,
-        project_id: p.projectId, created_at: p.createdAt, updated_at: p.updatedAt,
-        problem_files: filesByProblem.get(p.id),
-        answers: answersByProblem.get(p.id) ?? [],
-      })));
+      const res = await api.get<{ data: ProblemWithAnswers[] }>(
+        `/problems-list?project_id=${currentProject.id}`,
+      );
+      setAllProblems(res.data);
     } catch {
       // Dialog data is non-critical
     }
-  }, [currentProject, statusMap, statusPointMap]);
+  }, [currentProject]);
 
   // Fetch schedule first (fast), then dialog data in background
   useEffect(() => { fetchSchedule(); }, [fetchSchedule]);

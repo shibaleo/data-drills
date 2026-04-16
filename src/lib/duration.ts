@@ -9,6 +9,11 @@ export function secondsToHms(sec: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+/** Null-safe wrapper: convert seconds → "HH:MM:SS" or null */
+export function secondsToHmsNullable(sec: number | null): string | null {
+  return sec === null ? null : secondsToHms(sec)
+}
+
 /** Parse "HH:MM:SS", "MM:SS", or "SS" → seconds (null on invalid) */
 export function hmsToSeconds(hms: string): number | null {
   const parts = hms.split(':').map(Number)

@@ -1,19 +1,20 @@
 import { Hono } from "hono";
 import { db } from "@/lib/db";
-import { problem, answer, answerStatus } from "@/lib/db/schema";
+import { problem, answer, answerStatus, subject, level } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { computeNextReview, computeDaysOverdue } from "@/lib/fsrs";
 import { toJSTDateString } from "@/lib/date-utils";
+import { STATUS_COLORS } from "@/lib/fsrs";
 import type { AnswerStatus } from "@/lib/types";
 import { problemColor } from "@/lib/problem-color";
 
 const app = new Hono();
 
 /**
- * GET / — プロジェクトの復習スケジュールを返す
+ * GET / — プロジェクトの復習スケジュール（描画に必要な全フィールドを確定）
  *
- * problems + latest answer のみ取得し、サーバーサイドで FSRS 計算。
- * /problems-detail (6テーブル全件) より大幅に軽量。
+ * subject / level / answer_status まで join し、色もサーバーで決定する。
+ * クライアント側は受け取ったまま表示するだけでよい。
  */
 app.get("/", async (c) => {
   const projectId = c.req.query("project_id");
@@ -28,15 +29,19 @@ app.get("/", async (c) => {
     return c.json({ data: [] });
   }
 
-  const [answers, statuses] = await Promise.all([
+  const [answers, statuses, subjects, levels] = await Promise.all([
     db.select().from(answer)
       .where(inArray(answer.problemId, problemIds))
       .orderBy(answer.date),
     db.select().from(answerStatus),
+    db.select().from(subject).where(eq(subject.projectId, projectId)),
+    db.select().from(level).where(eq(level.projectId, projectId)),
   ]);
 
-  // Build status name lookup
+  // Lookups
   const statusNameMap = new Map(statuses.map((s) => [s.id, s.name]));
+  const subjectMap = new Map(subjects.map((s) => [s.id, s]));
+  const levelMap = new Map(levels.map((l) => [l.id, l]));
 
   // Find latest answer per problem + count
   const latestAnswer = new Map<string, { date: string; duration: number | null; answerStatusId: string | null }>();
@@ -75,23 +80,25 @@ app.get("/", async (c) => {
       daysUntil = -computeDaysOverdue(nextReview, today);
     }
 
-    const color = problemColor(
-      p.code,
-      p.name ?? "",
-      null, // subjectColor is resolved client-side from lookup
-    );
+    const subj = p.subjectId ? subjectMap.get(p.subjectId) : null;
+    const lvl = p.levelId ? levelMap.get(p.levelId) : null;
 
     return {
       problemId: p.id,
       code: p.code,
       name: p.name ?? "",
       subjectId: p.subjectId,
+      subjectName: subj?.name ?? "",
+      subjectColor: subj?.color ?? null,
       levelId: p.levelId,
+      levelName: lvl?.name ?? "",
+      levelColor: lvl?.color ?? null,
       lastStatus,
+      statusColor: STATUS_COLORS[lastStatus],
       nextReview,
       daysUntil,
       answerCount: answerCounts.get(p.id) ?? 0,
-      color,
+      color: problemColor(p.code, p.name ?? "", subj?.color ?? null),
     };
   });
 

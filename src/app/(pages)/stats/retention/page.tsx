@@ -11,11 +11,9 @@ import {
   type SortingState,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
+import { X } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { useProject } from "@/hooks/use-project";
-import { useLookupMaps } from "@/hooks/use-lookup-maps";
-import type { DDProblem, DDAnswer } from "@/lib/api-types";
+import { useProject, useLookup } from "@/hooks/use-project";
 import { CheckboxFilter } from "@/components/shared/checkbox-filter";
 import { usePageTitle } from "@/lib/page-context";
 import {
@@ -23,13 +21,14 @@ import {
   buildRetentionSeries,
   type ProblemRetentionMeta,
 } from "@/lib/retention-series";
+import { formatMonthDay } from "@/lib/date-utils";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { problemColor as computeProblemColor } from "@/lib/problem-color";
+import type { ProblemWithAnswers } from "@/components/problem-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,12 +39,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ANSWER_STATUSES, type AnswerStatus } from "@/lib/types";
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
+import { ANSWER_STATUSES } from "@/lib/types";
+import { SortHeader } from "@/app/(pages)/problems/columns";
 
 /* ── Table row type ── */
 
@@ -58,37 +53,6 @@ interface RowData {
   answerCount: number;
   retention: number;
   color: string;
-}
-
-/* ── Sort header ── */
-
-function SortHeader({
-  column,
-  children,
-}: {
-  column: {
-    getIsSorted: () => false | "asc" | "desc";
-    toggleSorting: (desc: boolean) => void;
-  };
-  children: React.ReactNode;
-}) {
-  const sorted = column.getIsSorted();
-  return (
-    <Button
-      variant="ghost"
-      className="-ml-3 h-8"
-      onClick={() => column.toggleSorting(sorted === "asc")}
-    >
-      {children}
-      {sorted === "asc" ? (
-        <ArrowUp className="ml-1 size-3.5" />
-      ) : sorted === "desc" ? (
-        <ArrowDown className="ml-1 size-3.5" />
-      ) : (
-        <ArrowUpDown className="ml-1 size-3.5 opacity-40" />
-      )}
-    </Button>
-  );
 }
 
 /* ── Column defs ── */
@@ -178,8 +142,8 @@ const columns: ColumnDef<RowData>[] = [
 export default function RetentionDetailPage() {
   usePageTitle("保持率推移");
   const { currentProject, subjects, levels } = useProject();
-  const { statusMap, statusPointMap, subjectColorMap } = useLookupMaps();
   const [allMetas, setAllMetas] = useState<ProblemRetentionMeta[]>([]);
+  const [colorByProblem, setColorByProblem] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sorting, setSorting] = useState<SortingState>([
@@ -193,65 +157,35 @@ export default function RetentionDetailPage() {
   const tableRef = useRef<HTMLDivElement>(null);
 
   const now = useMemo(() => new Date(), []);
-
-  const subjectNameMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of subjects) m.set(s.id, s.name);
-    return m;
-  }, [subjects]);
-
-  const levelNameMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const l of levels) m.set(l.id, l.name);
-    return m;
-  }, [levels]);
+  const { subjectName, levelName } = useLookup();
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const res = await api.get<{
-        data: { problems: DDProblem[]; answers: DDAnswer[] };
-      }>(`/problems-detail?project_id=${currentProject.id}`);
-      const { problems, answers } = res.data;
-
-      const answersByProblem = new Map<
-        string,
-        { date: string; status: AnswerStatus | null; point?: number }[]
-      >();
-      for (const a of answers) {
-        const status = a.answerStatusId
-          ? ((statusMap.get(a.answerStatusId) as AnswerStatus) ?? null)
-          : null;
-        const point = a.answerStatusId
-          ? statusPointMap.get(a.answerStatusId)
-          : undefined;
-        const list = answersByProblem.get(a.problemId) ?? [];
-        list.push({ date: a.date, status, point });
-        answersByProblem.set(a.problemId, list);
-      }
-
+      const res = await api.get<{ data: ProblemWithAnswers[] }>(
+        `/problems-list?project_id=${currentProject.id}`,
+      );
       const built: ProblemRetentionMeta[] = [];
-      for (const p of problems) {
+      const colorMap = new Map<string, string>();
+      for (const p of res.data) {
         const m = buildRetentionMeta(
-          p.id,
-          p.code,
-          p.name ?? "",
-          p.subjectId ?? "",
-          p.levelId ?? "",
-          answersByProblem.get(p.id) ?? [],
+          p.id, p.code, p.name, p.subject_id, p.level_id,
+          p.answers.map((a) => ({ date: a.date, status: a.status, point: a.point })),
           now,
         );
         if (m) built.push(m);
+        const colorField = (p as ProblemWithAnswers & { color?: string }).color;
+        if (colorField) colorMap.set(p.id, colorField);
       }
-
       setAllMetas(built);
+      setColorByProblem(colorMap);
     } catch {
       toast.error("Failed to fetch data");
     } finally {
       setLoading(false);
     }
-  }, [currentProject, statusMap, statusPointMap, now]);
+  }, [currentProject, now]);
 
   useEffect(() => {
     fetchData();
@@ -274,13 +208,10 @@ export default function RetentionDetailPage() {
   const problemColorMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const meta of visible) {
-      m.set(
-        meta.problemId,
-        computeProblemColor(meta.code, meta.name, subjectColorMap.get(meta.subjectId) ?? null),
-      );
+      m.set(meta.problemId, colorByProblem.get(meta.problemId) ?? "#888");
     }
     return m;
-  }, [visible, subjectColorMap]);
+  }, [visible, colorByProblem]);
 
   // Chart data
   const chartData = useMemo(() => {
@@ -322,13 +253,13 @@ export default function RetentionDetailPage() {
         problemId: m.problemId,
         code: m.code,
         name: m.name,
-        subjectName: subjectNameMap.get(m.subjectId) ?? "",
-        levelName: levelNameMap.get(m.levelId) ?? "",
+        subjectName: subjectName(m.subjectId),
+        levelName: levelName(m.levelId),
         answerCount: m.dated.length,
         retention: m.currentRetention,
         color: problemColorMap.get(m.problemId) ?? "#888",
       })),
-    [visible, subjectNameMap, levelNameMap, problemColorMap],
+    [visible, subjectName, levelName, problemColorMap],
   );
 
   const table = useReactTable({
@@ -450,7 +381,7 @@ export default function RetentionDetailPage() {
               <CartesianGrid vertical={false} />
               <XAxis
                 dataKey="date"
-                tickFormatter={formatDate}
+                tickFormatter={formatMonthDay}
                 tickLine={false}
                 axisLine={false}
               />

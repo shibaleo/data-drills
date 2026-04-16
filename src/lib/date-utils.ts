@@ -41,3 +41,9 @@ export function jstDayDiff(a: string, b: string): number {
     (new Date(da).getTime() - new Date(db).getTime()) / 86_400_000,
   )
 }
+
+/** Format a date string as "M/D" (local time) for chart axes. */
+export function formatMonthDay(dateStr: string): string {
+  const d = new Date(dateStr)
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}

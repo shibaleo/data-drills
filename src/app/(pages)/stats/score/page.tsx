@@ -23,9 +23,7 @@ import {
 } from "@tanstack/react-table";
 import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
-import { useLookupMaps } from "@/hooks/use-lookup-maps";
 import { usePageTitle } from "@/lib/page-context";
-import type { DDProblem, DDAnswer, DDReview, DDReviewTag, DDTag, DDProblemFile, ProblemsDetailResponse } from "@/lib/api-types";
 import {
   STATUS_COLORS,
   computeScore,
@@ -35,7 +33,6 @@ import {
   fitPredictionLine,
   type ScorePoint,
 } from "@/lib/fsrs";
-import { problemColor } from "@/lib/problem-color";
 import { SortHeader } from "@/app/(pages)/problems/columns";
 import { toJSTDateString } from "@/lib/date-utils";
 import {
@@ -54,15 +51,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProblemCard, type ProblemWithAnswers } from "@/components/problem-card";
-import { ANSWER_STATUSES, type AnswerStatus, type Answer, type Review, type ProblemFile } from "@/lib/types";
+import { ANSWER_STATUSES, type AnswerStatus } from "@/lib/types";
 
-function secondsToDuration(seconds: number | null): string | null {
-  if (seconds === null) return null;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
+// /problems-list returns answers with extra duration_sec field
+type ListAnswer = ProblemWithAnswers["answers"][number] & { duration_sec: number | null };
+type ListProblem = Omit<ProblemWithAnswers, "answers"> & {
+  color: string;
+  answers: ListAnswer[];
+};
 
 /* ── Table row type ── */
 
@@ -210,7 +206,6 @@ function ScoreTooltipContent({
 export default function ScoreDashboardPage() {
   usePageTitle("スコアダッシュボード");
   const { currentProject } = useProject();
-  const { statusMap, statusPointMap, subjectColorMap } = useLookupMaps();
   const [rows, setRows] = useState<RowData[]>([]);
   const [problemMap, setProblemMap] = useState<Map<string, ProblemWithAnswers>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -227,161 +222,55 @@ export default function ScoreDashboardPage() {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const res = await api.get<{ data: ProblemsDetailResponse }>(`/problems-detail?project_id=${currentProject.id}`);
-      const { problems, answers, reviews, reviewTags, tags, problemFiles } = res.data;
-
-      // Build tag map
-      const tagMap = new Map<string, string>();
-      for (const t of tags) tagMap.set(t.id, t.name);
-
-      // Build reviewTags map
-      const reviewTagsMap = new Map<string, string[]>();
-      for (const rt of reviewTags) {
-        const list = reviewTagsMap.get(rt.reviewId) ?? [];
-        list.push(tagMap.get(rt.tagId) ?? "");
-        reviewTagsMap.set(rt.reviewId, list);
-      }
-
-      // Build reviews by answer
-      const reviewsByAnswer = new Map<string, Review[]>();
-      for (const r of reviews) {
-        const rTags = reviewTagsMap.get(r.id) ?? [];
-        const ldReview: Review = {
-          id: r.id,
-          content: r.content ?? "",
-          review_type: (rTags[0] as Review["review_type"]) ?? null,
-          answer_id: r.answerId,
-          created_at: r.createdAt,
-          updated_at: r.createdAt,
-        };
-        const list = reviewsByAnswer.get(r.answerId) ?? [];
-        list.push(ldReview);
-        reviewsByAnswer.set(r.answerId, list);
-      }
-
-      // Build answers by problem (full Answer type for ProblemCard)
-      const answersByProblem = new Map<string, (Answer & { reviews: Review[] })[]>();
-      const rawAnswersByProblem = new Map<string, DDAnswer[]>();
-      for (const a of answers) {
-        // Full answer for ProblemCard
-        const ldAnswer: Answer & { reviews: Review[] } = {
-          id: a.id,
-          date: a.date,
-          duration: secondsToDuration(a.duration),
-          status: (a.answerStatusId ? statusMap.get(a.answerStatusId) as AnswerStatus ?? null : null),
-          point: a.answerStatusId ? statusPointMap.get(a.answerStatusId) : undefined,
-          problem_id: a.problemId,
-          created_at: a.createdAt,
-          updated_at: a.createdAt,
-          reviews: reviewsByAnswer.get(a.id) ?? [],
-        };
-        const fullList = answersByProblem.get(a.problemId) ?? [];
-        fullList.push(ldAnswer);
-        answersByProblem.set(a.problemId, fullList);
-
-        // Raw answer for score computation
-        const rawList = rawAnswersByProblem.get(a.problemId) ?? [];
-        rawList.push(a);
-        rawAnswersByProblem.set(a.problemId, rawList);
-      }
-
-      // Build files by problem
-      const filesByProblem = new Map<string, ProblemFile[]>();
-      for (const f of problemFiles) {
-        const ldFile: ProblemFile = {
-          id: f.id,
-          problem_id: f.problemId,
-          gdrive_file_id: f.gdriveFileId,
-          file_name: f.fileName ?? "",
-          created_at: f.createdAt,
-        };
-        const list = filesByProblem.get(f.problemId) ?? [];
-        list.push(ldFile);
-        filesByProblem.set(f.problemId, list);
-      }
+      const res = await api.get<{ data: ListProblem[] }>(
+        `/problems-list?project_id=${currentProject.id}`,
+      );
 
       const builtRows: RowData[] = [];
       const builtProblemMap = new Map<string, ProblemWithAnswers>();
 
-      for (const p of problems) {
-        const rawAnswers = rawAnswersByProblem.get(p.id) ?? [];
-        if (rawAnswers.length === 0) continue;
+      for (const p of res.data) {
+        // Only consider answers with a valid date
+        const dated = p.answers.filter((a): a is ListAnswer & { date: string } => a.date !== null);
+        if (dated.length === 0) continue;
 
         // Sort chronologically
-        const sorted = [...rawAnswers].sort((a, b) =>
-          a.date.localeCompare(b.date),
-        );
+        const sorted = [...dated].sort((a, b) => a.date.localeCompare(b.date));
         const latest = sorted[sorted.length - 1];
-        const lastStatus =
-          (latest.answerStatusId
-            ? (statusMap.get(latest.answerStatusId) as AnswerStatus)
-            : null) ?? "Yet";
+        const lastStatus = latest.status ?? "Yet";
 
-        // Score
-        const score = computeScore(
-          lastStatus,
-          p.standardTime,
-          latest.duration,
-        );
-
-        // Next review & overdue
-        const nextReview = computeNextReview(
-          latest.date, lastStatus, p.standardTime, latest.duration,
-        );
+        const score = computeScore(lastStatus, p.standard_time, latest.duration_sec);
+        const nextReview = computeNextReview(latest.date, lastStatus, p.standard_time, latest.duration_sec);
         const daysOverdue = computeDaysOverdue(nextReview, todayStr);
 
-        // Time ratio = duration / standardTime
         const timeScore =
-          p.standardTime && p.standardTime > 0 && latest.duration && latest.duration > 0
-            ? latest.duration / p.standardTime
+          p.standard_time && p.standard_time > 0 && latest.duration_sec && latest.duration_sec > 0
+            ? latest.duration_sec / p.standard_time
             : null;
 
-        // Score history for graph
         const answersForHistory = sorted.map((a) => ({
           date: a.date,
-          status:
-            (a.answerStatusId
-              ? (statusMap.get(a.answerStatusId) as AnswerStatus)
-              : null) ?? ("Yet" as AnswerStatus),
-          durationSec: a.duration,
+          status: (a.status ?? "Yet") as AnswerStatus,
+          durationSec: a.duration_sec,
         }));
-        const scoreHistory = computeScoreHistory(
-          answersForHistory,
-          p.standardTime,
-        );
-
-        const color = problemColor(p.code, p.name ?? "", p.subjectId ? subjectColorMap.get(p.subjectId) ?? null : null);
+        const scoreHistory = computeScoreHistory(answersForHistory, p.standard_time);
 
         builtRows.push({
           problemId: p.id,
           code: p.code,
-          name: p.name ?? "",
-          color,
+          name: p.name,
+          color: p.color,
           lastStatus,
           score,
           nextReview,
           daysOverdue,
           timeScore,
           reviewCount: sorted.length,
-          standardTime: p.standardTime,
+          standardTime: p.standard_time,
           scoreHistory,
         });
 
-        // Full ProblemWithAnswers for detail panel
-        builtProblemMap.set(p.id, {
-          id: p.id,
-          code: p.code,
-          name: p.name ?? "",
-          subject_id: p.subjectId ?? "",
-          level_id: p.levelId ?? "",
-          checkpoint: p.checkpoint,
-          standard_time: p.standardTime ?? null,
-          project_id: p.projectId,
-          created_at: p.createdAt,
-          updated_at: p.updatedAt,
-          problem_files: filesByProblem.get(p.id),
-          answers: answersByProblem.get(p.id) ?? [],
-        });
+        builtProblemMap.set(p.id, p);
       }
 
       setRows(builtRows);
@@ -391,7 +280,7 @@ export default function ScoreDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentProject, statusMap, statusPointMap, subjectColorMap, todayStr]);
+  }, [currentProject, todayStr]);
 
   useEffect(() => {
     fetchData();

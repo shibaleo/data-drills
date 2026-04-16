@@ -13,61 +13,17 @@ import {
 } from "@tanstack/react-table";
 import { api, ApiError } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
+import { useSubjectLevelFilter } from "@/hooks/use-subject-level-filter";
 import { usePageTitle } from "@/lib/page-context";
 import { useProblemDialogs } from "@/hooks/use-problem-dialogs";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getColumns } from "./columns";
 import type { ProblemWithAnswers } from "@/components/problem-card";
-import type { Answer, AnswerStatus, Review, ProblemFile } from "@/lib/types";
-
-interface DDProblem {
-  id: string;
-  code: string;
-  name: string | null;
-  subjectId: string | null;
-  levelId: string | null;
-  checkpoint: string | null;
-  standardTime: number | null;
-  projectId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-interface DDAnswer {
-  id: string;
-  problemId: string;
-  date: string;
-  duration: number | null;
-  answerStatusId: string | null;
-  createdAt: string;
-}
-interface DDReview {
-  id: string;
-  answerId: string;
-  content: string | null;
-  createdAt: string;
-}
-interface DDReviewTag { reviewId: string; tagId: string; }
-interface DDTag { id: string; name: string; }
-interface DDProblemFile {
-  id: string;
-  problemId: string;
-  gdriveFileId: string;
-  fileName: string | null;
-  createdAt: string;
-}
-
-function secondsToDuration(seconds: number | null): string | null {
-  if (seconds === null) return null;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
 
 export default function ProblemsPage() {
   usePageTitle("Problems");
-  const { currentProject, subjects, levels, statuses, filterSubjectId, filterLevelId } = useProject();
+  const { currentProject, subjects, levels } = useProject();
   const [problems, setProblems] = useState<ProblemWithAnswers[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -87,122 +43,26 @@ export default function ProblemsPage() {
     return m;
   }, [levels]);
 
-  const statusMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of statuses) m.set(s.id, s.name);
-    return m;
-  }, [statuses]);
-
-  const statusPointMap = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of statuses) m.set(s.id, s.point ?? 0);
-    return m;
-  }, [statuses]);
-
   const now = useMemo(() => new Date(), []);
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const res = await api.get<{ data: {
-        problems: DDProblem[];
-        answers: DDAnswer[];
-        reviews: DDReview[];
-        reviewTags: DDReviewTag[];
-        tags: DDTag[];
-        problemFiles: DDProblemFile[];
-      } }>(`/problems-detail?project_id=${currentProject.id}`);
-      const { problems: ddProblems, answers: ddAnswers, reviews: ddReviews, reviewTags: ddReviewTags, tags: ddTags, problemFiles: ddFiles } = res.data;
-
-      const tagMap = new Map<string, string>();
-      for (const t of ddTags) tagMap.set(t.id, t.name);
-
-      const reviewTagsMap = new Map<string, string[]>();
-      for (const rt of ddReviewTags) {
-        const list = reviewTagsMap.get(rt.reviewId) ?? [];
-        list.push(tagMap.get(rt.tagId) ?? "");
-        reviewTagsMap.set(rt.reviewId, list);
-      }
-
-      const reviewsByAnswer = new Map<string, Review[]>();
-      for (const r of ddReviews) {
-        const tags = reviewTagsMap.get(r.id) ?? [];
-        const ldReview: Review = {
-          id: r.id,
-          content: r.content ?? "",
-          review_type: (tags[0] as Review["review_type"]) ?? null,
-          answer_id: r.answerId,
-          created_at: r.createdAt,
-          updated_at: r.createdAt,
-        };
-        const list = reviewsByAnswer.get(r.answerId) ?? [];
-        list.push(ldReview);
-        reviewsByAnswer.set(r.answerId, list);
-      }
-
-      const answersByProblem = new Map<string, (Answer & { reviews: Review[] })[]>();
-      for (const a of ddAnswers) {
-        const ldAnswer: Answer & { reviews: Review[] } = {
-          id: a.id,
-          date: a.date,
-          duration: secondsToDuration(a.duration),
-          status: (a.answerStatusId ? statusMap.get(a.answerStatusId) as AnswerStatus ?? null : null),
-          point: a.answerStatusId ? statusPointMap.get(a.answerStatusId) : undefined,
-          problem_id: a.problemId,
-          created_at: a.createdAt,
-          updated_at: a.createdAt,
-          reviews: reviewsByAnswer.get(a.id) ?? [],
-        };
-        const list = answersByProblem.get(a.problemId) ?? [];
-        list.push(ldAnswer);
-        answersByProblem.set(a.problemId, list);
-      }
-
-      const filesByProblem = new Map<string, ProblemFile[]>();
-      for (const f of ddFiles) {
-        const ldFile: ProblemFile = {
-          id: f.id,
-          problem_id: f.problemId,
-          gdrive_file_id: f.gdriveFileId,
-          file_name: f.fileName ?? "",
-          created_at: f.createdAt,
-        };
-        const list = filesByProblem.get(f.problemId) ?? [];
-        list.push(ldFile);
-        filesByProblem.set(f.problemId, list);
-      }
-
-      const combined: ProblemWithAnswers[] = ddProblems.map((p) => ({
-        id: p.id,
-        code: p.code,
-        name: p.name ?? "",
-        subject_id: p.subjectId ?? "",
-        level_id: p.levelId ?? "",
-        checkpoint: p.checkpoint,
-        standard_time: p.standardTime ?? null,
-        project_id: p.projectId,
-        created_at: p.createdAt,
-        updated_at: p.updatedAt,
-        problem_files: filesByProblem.get(p.id),
-        answers: answersByProblem.get(p.id) ?? [],
-      }));
-
-      setProblems(combined);
+      const res = await api.get<{ data: ProblemWithAnswers[] }>(
+        `/problems-list?project_id=${currentProject.id}`,
+      );
+      setProblems(res.data);
     } catch {
       toast.error("Failed to fetch problems");
     } finally {
       setLoading(false);
     }
-  }, [currentProject, statusMap, statusPointMap]);
+  }, [currentProject]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const filtered = useMemo(() => problems.filter((p) => {
-    if (filterSubjectId && p.subject_id !== filterSubjectId) return false;
-    if (filterLevelId && p.level_id !== filterLevelId) return false;
-    return true;
-  }), [problems, filterSubjectId, filterLevelId]);
+  const filtered = useSubjectLevelFilter(problems, { subject: "subject_id", level: "level_id" });
 
   // Shared dialogs (detail, edit, answer create/edit, fab)
   const { openDetail, renderDialogs } = useProblemDialogs({

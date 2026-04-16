@@ -6,12 +6,14 @@ import { toast } from "sonner";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
+import { useSubjectLevelFilter } from "@/hooks/use-subject-level-filter";
 import { usePageTitle } from "@/lib/page-context";
 import {
   buildRetentionMeta,
   buildAverageRetentionSeries,
   type ProblemRetentionMeta,
 } from "@/lib/retention-series";
+import { formatMonthDay } from "@/lib/date-utils";
 import { BarChart3, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,20 +22,12 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import type { AnswerStatus } from "@/lib/types";
-import type { DDProblem, DDAnswer } from "@/lib/api-types";
-import { useLookupMaps } from "@/hooks/use-lookup-maps";
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
+import type { ProblemWithAnswers } from "@/components/problem-card";
 
 export default function StatsPage() {
   usePageTitle("Stats");
   const router = useRouter();
-  const { currentProject, filterSubjectId } = useProject();
-  const { statusMap, statusPointMap } = useLookupMaps();
+  const { currentProject } = useProject();
   const [metas, setMetas] = useState<ProblemRetentionMeta[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,50 +37,29 @@ export default function StatsPage() {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const res = await api.get<{
-        data: { problems: DDProblem[]; answers: DDAnswer[] };
-      }>(`/problems-detail?project_id=${currentProject.id}`);
-      const { problems, answers } = res.data;
-
-      const answersByProblem = new Map<
-        string,
-        { date: string; status: AnswerStatus | null; point?: number }[]
-      >();
-      for (const a of answers) {
-        const status = a.answerStatusId
-          ? ((statusMap.get(a.answerStatusId) as AnswerStatus) ?? null)
-          : null;
-        const point = a.answerStatusId
-          ? statusPointMap.get(a.answerStatusId)
-          : undefined;
-        const list = answersByProblem.get(a.problemId) ?? [];
-        list.push({ date: a.date, status, point });
-        answersByProblem.set(a.problemId, list);
-      }
-
+      const res = await api.get<{ data: ProblemWithAnswers[] }>(
+        `/problems-list?project_id=${currentProject.id}`,
+      );
       const built: ProblemRetentionMeta[] = [];
-      for (const p of problems) {
+      for (const p of res.data) {
         const m = buildRetentionMeta(
-          p.id, p.code, p.name ?? "", p.subjectId ?? "", p.levelId ?? "",
-          answersByProblem.get(p.id) ?? [], now,
+          p.id, p.code, p.name, p.subject_id, p.level_id,
+          p.answers.map((a) => ({ date: a.date, status: a.status, point: a.point })),
+          now,
         );
         if (m) built.push(m);
       }
-
       setMetas(built);
     } catch {
       toast.error("Failed to fetch data");
     } finally {
       setLoading(false);
     }
-  }, [currentProject, statusMap, statusPointMap, now]);
+  }, [currentProject, now]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const filtered = useMemo(
-    () => metas.filter((m) => !filterSubjectId || m.subjectId === filterSubjectId),
-    [metas, filterSubjectId],
-  );
+  const filtered = useSubjectLevelFilter(metas, { subject: "subjectId", level: "levelId" });
 
   const avgSeries = useMemo(
     () => buildAverageRetentionSeries(filtered, now),
@@ -123,7 +96,7 @@ export default function StatsPage() {
             <ChartContainer config={avgChartConfig} className="h-[200px] w-full">
               <AreaChart data={avgSeries} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
                 <CartesianGrid vertical={false} />
-                <XAxis dataKey="date" tickFormatter={formatDate} tickLine={false} axisLine={false} />
+                <XAxis dataKey="date" tickFormatter={formatMonthDay} tickLine={false} axisLine={false} />
                 <YAxis domain={[0, 100]} tickLine={false} axisLine={false} width={32} tickFormatter={(v) => `${v}%`} />
                 <ChartTooltip content={<ChartTooltipContent formatter={(value) => [`${value}%`, "平均保持率"]} />} />
                 <Area dataKey="retention" type="monotone" fill="hsl(var(--chart-1))" fillOpacity={0.2} stroke="hsl(var(--chart-1))" strokeWidth={2} />

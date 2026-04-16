@@ -22,9 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
-import { computeNextReview } from "@/lib/fsrs";
-import type { DDProblem, DDAnswer } from "@/lib/api-types";
-import type { AnswerStatus } from "@/lib/types";
+import type { ScheduleRow } from "@/lib/api-responses";
 import { UserMenu } from "./user-menu";
 
 const EXPANDED_WIDTH = 224;
@@ -41,52 +39,20 @@ interface NavItem {
 /* ── Overdue badge ── */
 
 function OverdueBadge() {
-  const { currentProject, statuses } = useProject();
+  const { currentProject } = useProject();
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (!currentProject || statuses.length === 0) return;
-    const sMap = new Map<string, string>();
-    for (const s of statuses) sMap.set(s.id, s.name);
-
+    if (!currentProject) return;
     api
-      .get<{ data: { problems: DDProblem[]; answers: DDAnswer[] } }>(
-        `/problems-detail?project_id=${currentProject.id}`,
+      .get<{ data: ScheduleRow[] }>(
+        `/schedule?project_id=${currentProject.id}`,
       )
       .then((res) => {
-        const { problems, answers } = res.data;
-        const byProblem = new Map<string, DDAnswer[]>();
-        for (const a of answers) {
-          const list = byProblem.get(a.problemId) ?? [];
-          list.push(a);
-          byProblem.set(a.problemId, list);
-        }
-        const today = new Date().toISOString().slice(0, 10);
-        let n = 0;
-        for (const p of problems) {
-          const pa = byProblem.get(p.id) ?? [];
-          if (pa.length === 0) {
-            n++;
-            continue;
-          }
-          const sorted = [...pa].sort((a, b) => a.date.localeCompare(b.date));
-          const latest = sorted[sorted.length - 1];
-          const st =
-            (latest.answerStatusId
-              ? (sMap.get(latest.answerStatusId) as AnswerStatus)
-              : null) ?? "Yet";
-          const nr = computeNextReview(
-            latest.date,
-            st,
-            p.standardTime,
-            latest.duration,
-          );
-          if (nr <= today) n++;
-        }
-        setCount(n);
+        setCount(res.data.filter((r) => r.daysUntil <= 0).length);
       })
       .catch(() => {});
-  }, [currentProject, statuses]);
+  }, [currentProject]);
 
   if (count <= 0) return null;
   return (
@@ -98,12 +64,12 @@ function OverdueBadge() {
 
 const navItems: NavItem[] = [
   { href: "/schedule", label: "Schedule", icon: CalendarDays, Badge: OverdueBadge, dividerAfter: true },
-  { href: "/flashcards", label: "Flashcards", icon: Layers },
-  { href: "/timeline", label: "Timeline", icon: Clock },
-  { href: "/answers", label: "Answers", icon: PenLine },
   { href: "/problems", label: "Problems", icon: TableProperties },
-  { href: "/stats", label: "Stats", icon: BarChart3 },
-  { href: "/notes", label: "Notes", icon: FileText },
+  { href: "/answers", label: "Answers", icon: PenLine },
+  { href: "/timeline", label: "Timeline", icon: Clock, dividerAfter: true },
+  { href: "/flashcards", label: "Flashcards", icon: Layers },
+  { href: "/notes", label: "Notes", icon: FileText, dividerAfter: true },
+  { href: "/stats", label: "Stats", icon: BarChart3, dividerAfter: true },
   { href: "/topics", label: "Topics", icon: List },
   { href: "/tags", label: "Tags", icon: Tag, dividerAfter: true },
   { href: "/masters", label: "Masters", icon: LayoutGrid },

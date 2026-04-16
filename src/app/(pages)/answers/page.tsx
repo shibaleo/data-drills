@@ -5,6 +5,7 @@ import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
+import { useSubjectLevelFilter } from "@/hooks/use-subject-level-filter";
 import { useAnswerForm, useEditAnswerForm } from "@/hooks/use-answer-form";
 import { usePageTitle } from "@/lib/page-context";
 import { ProblemDetailDialog } from "@/components/problem-detail-dialog";
@@ -12,67 +13,15 @@ import { ProblemEditDialog } from "@/components/problem-edit-dialog";
 import { AnswerDialog } from "@/components/answer-dialog";
 import { StatusTag } from "@/components/color-tags";
 import type { ProblemWithAnswers } from "@/components/problem-card";
-import type { Problem, Answer, AnswerStatus, Review, ProblemFile } from "@/lib/types";
+import type { Problem, AnswerStatus } from "@/lib/types";
+import type { AnswerListRow } from "@/lib/api-responses";
 import { toJSTDate } from "@/lib/date-utils";
-
-interface DDProblem {
-  id: string;
-  code: string;
-  name: string | null;
-  subjectId: string | null;
-  levelId: string | null;
-  checkpoint: string | null;
-  standardTime: number | null;
-  projectId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-interface DDAnswer {
-  id: string;
-  problemId: string;
-  date: string;
-  duration: number | null;
-  answerStatusId: string | null;
-  createdAt: string;
-}
-interface DDReview {
-  id: string;
-  answerId: string;
-  content: string | null;
-  createdAt: string;
-}
-interface DDReviewTag { reviewId: string; tagId: string; }
-interface DDTag { id: string; name: string; }
-interface DDProblemFile {
-  id: string;
-  problemId: string;
-  gdriveFileId: string;
-  fileName: string | null;
-  createdAt: string;
-}
-
-function secondsToDuration(seconds: number | null): string | null {
-  if (seconds === null) return null;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-function fmtDuration(seconds: number | null): string {
-  if (seconds === null) return "";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
 
 export default function AnswersPage() {
   usePageTitle("Answers");
-  const { currentProject, statuses, subjects, levels, filterSubjectId, filterLevelId } = useProject();
+  const { currentProject, subjects, levels } = useProject();
+  const [rows, setRows] = useState<AnswerListRow[]>([]);
   const [problemsWithAnswers, setProblemsWithAnswers] = useState<ProblemWithAnswers[]>([]);
-  const [rawAnswers, setRawAnswers] = useState<DDAnswer[]>([]);
-  const [rawProblems, setRawProblems] = useState<DDProblem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Detail dialog
@@ -84,145 +33,28 @@ export default function AnswersPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editProblem, setEditProblem] = useState<Problem | null>(null);
 
-  const statusIdMap = useMemo(() => {
-    const m = new Map<string, { name: string; color: string | null; point: number }>();
-    for (const s of statuses) m.set(s.id, { name: s.name, color: s.color ?? null, point: s.point ?? 0 });
-    return m;
-  }, [statuses]);
-
-  const statusNameMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const s of statuses) m.set(s.id, s.name);
-    return m;
-  }, [statuses]);
-
-  const statusPointMap = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of statuses) m.set(s.id, s.point ?? 0);
-    return m;
-  }, [statuses]);
-
-  const problemMap = useMemo(() => {
-    const m = new Map<string, DDProblem>();
-    for (const p of rawProblems) m.set(p.id, p);
-    return m;
-  }, [rawProblems]);
-
   const now = useMemo(() => new Date(), []);
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
     setLoading(true);
     try {
-      const res = await api.get<{ data: {
-        problems: DDProblem[];
-        answers: DDAnswer[];
-        reviews: DDReview[];
-        reviewTags: DDReviewTag[];
-        tags: DDTag[];
-        problemFiles: DDProblemFile[];
-      } }>(`/problems-detail?project_id=${currentProject.id}`);
-      const { problems: ddProblems, answers: ddAnswers, reviews: ddReviews, reviewTags: ddReviewTags, tags: ddTags, problemFiles: ddFiles } = res.data;
-
-      setRawProblems(ddProblems);
-
-      const tagMap = new Map<string, string>();
-      for (const t of ddTags) tagMap.set(t.id, t.name);
-
-      const reviewTagsMap = new Map<string, string[]>();
-      for (const rt of ddReviewTags) {
-        const list = reviewTagsMap.get(rt.reviewId) ?? [];
-        list.push(tagMap.get(rt.tagId) ?? "");
-        reviewTagsMap.set(rt.reviewId, list);
-      }
-
-      const reviewsByAnswer = new Map<string, Review[]>();
-      for (const r of ddReviews) {
-        const tags = reviewTagsMap.get(r.id) ?? [];
-        const ldReview: Review = {
-          id: r.id,
-          content: r.content ?? "",
-          review_type: (tags[0] as Review["review_type"]) ?? null,
-          answer_id: r.answerId,
-          created_at: r.createdAt,
-          updated_at: r.createdAt,
-        };
-        const list = reviewsByAnswer.get(r.answerId) ?? [];
-        list.push(ldReview);
-        reviewsByAnswer.set(r.answerId, list);
-      }
-
-      const answersByProblem = new Map<string, (Answer & { reviews: Review[] })[]>();
-      for (const a of ddAnswers) {
-        const ldAnswer: Answer & { reviews: Review[] } = {
-          id: a.id,
-          date: a.date,
-          duration: secondsToDuration(a.duration),
-          status: (a.answerStatusId ? statusNameMap.get(a.answerStatusId) as AnswerStatus ?? null : null),
-          point: a.answerStatusId ? statusPointMap.get(a.answerStatusId) : undefined,
-          problem_id: a.problemId,
-          created_at: a.createdAt,
-          updated_at: a.createdAt,
-          reviews: reviewsByAnswer.get(a.id) ?? [],
-        };
-        const list = answersByProblem.get(a.problemId) ?? [];
-        list.push(ldAnswer);
-        answersByProblem.set(a.problemId, list);
-      }
-
-      const filesByProblem = new Map<string, ProblemFile[]>();
-      for (const f of ddFiles) {
-        const ldFile: ProblemFile = {
-          id: f.id,
-          problem_id: f.problemId,
-          gdrive_file_id: f.gdriveFileId,
-          file_name: f.fileName ?? "",
-          created_at: f.createdAt,
-        };
-        const list = filesByProblem.get(f.problemId) ?? [];
-        list.push(ldFile);
-        filesByProblem.set(f.problemId, list);
-      }
-
-      const combined: ProblemWithAnswers[] = ddProblems.map((p) => ({
-        id: p.id,
-        code: p.code,
-        name: p.name ?? "",
-        subject_id: p.subjectId ?? "",
-        level_id: p.levelId ?? "",
-        checkpoint: p.checkpoint,
-        standard_time: p.standardTime ?? null,
-        project_id: p.projectId,
-        created_at: p.createdAt,
-        updated_at: p.updatedAt,
-        problem_files: filesByProblem.get(p.id),
-        answers: answersByProblem.get(p.id) ?? [],
-      }));
-
-      setProblemsWithAnswers(combined);
-
-      // Filter answers to current project
-      const problemIds = new Set(ddProblems.map((p) => p.id));
-      const filtered = ddAnswers
-        .filter((a) => problemIds.has(a.problemId))
-        .sort((a, b) => b.date.localeCompare(a.date));
-      setRawAnswers(filtered);
+      const [rowsRes, problemsRes] = await Promise.all([
+        api.get<{ data: AnswerListRow[] }>(`/answers-list?project_id=${currentProject.id}`),
+        api.get<{ data: ProblemWithAnswers[] }>(`/problems-list?project_id=${currentProject.id}`),
+      ]);
+      setRows(rowsRes.data);
+      setProblemsWithAnswers(problemsRes.data);
     } catch {
       toast.error("Failed to fetch answers");
     } finally {
       setLoading(false);
     }
-  }, [currentProject, statusNameMap, statusPointMap]);
+  }, [currentProject]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const filteredAnswers = useMemo(() => rawAnswers.filter((a) => {
-    const prob = problemMap.get(a.problemId);
-    if (!prob) return true;
-    if (filterSubjectId && prob.subjectId !== filterSubjectId) return false;
-    if (filterLevelId && prob.levelId !== filterLevelId) return false;
-    return true;
-  }), [rawAnswers, problemMap, filterSubjectId, filterLevelId]);
+  const filteredRows = useSubjectLevelFilter(rows, { subject: "subjectId", level: "levelId" });
 
   // Answer create/edit forms
   const answerForm = useAnswerForm(() => { fetchData(); });
@@ -255,8 +87,8 @@ export default function AnswersPage() {
     }
   };
 
-  const handleRowClick = (a: DDAnswer) => {
-    setDetailProblemId(a.problemId);
+  const handleRowClick = (problemId: string) => {
+    setDetailProblemId(problemId);
     setDetailOpen(true);
   };
 
@@ -272,7 +104,7 @@ export default function AnswersPage() {
     <div className="p-4 md:p-6">
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
-      ) : filteredAnswers.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No answers found</div>
       ) : (
         <div className="border border-border rounded-md overflow-hidden">
@@ -290,36 +122,32 @@ export default function AnswersPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredAnswers.map((a) => {
-                const prob = problemMap.get(a.problemId);
-                const statusEntry = a.answerStatusId ? statusIdMap.get(a.answerStatusId) : null;
-                return (
-                  <tr
-                    key={a.id}
-                    className="border-b border-border/30 transition-colors cursor-pointer hover:bg-accent/20"
-                    onClick={() => handleRowClick(a)}
-                  >
-                    <td className="py-2 px-3 text-xs">{a.date ? toJSTDate(a.date) : ""}</td>
-                    <td className="py-2 px-3 font-mono text-xs text-muted-foreground">{fmtDuration(a.duration)}</td>
-                    <td className="py-2 px-3">
-                      {statusEntry && <StatusTag status={statusEntry.name as AnswerStatus} color={statusEntry.color} opaque />}
-                    </td>
-                    <td className="py-2 px-3">{prob?.name ?? ""}</td>
-                    <td className="py-2 px-3 text-muted-foreground">{prob?.subjectId ? (() => { const s = subjects.find((x) => x.id === prob.subjectId); return s?.name ?? ""; })() : ""}</td>
-                    <td className="py-2 px-3 text-muted-foreground">{prob?.levelId ? (() => { const l = levels.find((x) => x.id === prob.levelId); return l?.name ?? ""; })() : ""}</td>
-                    <td className="py-2 px-3 font-mono text-xs">{prob?.code ?? ""}</td>
-                    <td className="py-2 px-3">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleDeleteAnswer(a.id); }}
-                        className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {filteredRows.map((r) => (
+                <tr
+                  key={r.id}
+                  className="border-b border-border/30 transition-colors cursor-pointer hover:bg-accent/20"
+                  onClick={() => handleRowClick(r.problemId)}
+                >
+                  <td className="py-2 px-3 text-xs">{r.date ? toJSTDate(r.date) : ""}</td>
+                  <td className="py-2 px-3 font-mono text-xs text-muted-foreground">{r.duration ?? ""}</td>
+                  <td className="py-2 px-3">
+                    {r.status && <StatusTag status={r.status} color={r.statusColor} opaque />}
+                  </td>
+                  <td className="py-2 px-3">{r.problemName}</td>
+                  <td className="py-2 px-3 text-muted-foreground">{r.subjectName}</td>
+                  <td className="py-2 px-3 text-muted-foreground">{r.levelName}</td>
+                  <td className="py-2 px-3 font-mono text-xs">{r.code}</td>
+                  <td className="py-2 px-3">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteAnswer(r.id); }}
+                      className="inline-flex size-6 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

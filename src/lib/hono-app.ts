@@ -17,7 +17,8 @@ import statuses from "@/routes/statuses";
 import tags from "@/routes/tags";
 import reviewTags from "@/routes/review-tags";
 import problemFiles from "@/routes/problem-files";
-import problemsDetail from "@/routes/problems-detail";
+import problemsList from "@/routes/problems-list";
+import answersList from "@/routes/answers-list";
 import schedule from "@/routes/schedule";
 import notes from "@/routes/notes";
 
@@ -60,7 +61,8 @@ app.route("/statuses", statuses);
 app.route("/tags", tags);
 app.route("/review-tags", reviewTags);
 app.route("/problem-files", problemFiles);
-app.route("/problems-detail", problemsDetail);
+app.route("/problems-list", problemsList);
+app.route("/answers-list", answersList);
 app.route("/schedule", schedule);
 app.route("/notes", notes);
 
