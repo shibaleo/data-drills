@@ -101,7 +101,7 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
   const [level, setLevel] = useState('')
   const [code, setCode] = useState('')
   const [duration, setDuration] = useState('')
-  const [status, setStatus] = useState<AnswerStatus>('Yet')
+  const [status, setStatus] = useState<AnswerStatus>('Miss')
   const [reviews, setReviews] = useState<{ _key?: string; type: ReviewType; content: string }[]>([])
 
   const [origSubject, setOrigSubject] = useState('')
@@ -147,7 +147,7 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
     setOrigLevel('')
     setOrigCode('')
     setDuration('')
-    setStatus(defaults?.status ?? 'Yet')
+    setStatus(defaults?.status ?? 'Miss')
     setReviews([])
     setOpen(true)
   }
@@ -233,7 +233,7 @@ export function useEditAnswerForm(onSaved: (problemId: string) => void) {
   const [subject, setSubject] = useState('')
   const [level, setLevel] = useState('')
   const [code, setCode] = useState('')
-  const [status, setStatus] = useState<AnswerStatus>('Yet')
+  const [status, setStatus] = useState<AnswerStatus>('Miss')
   const [duration, setDuration] = useState('')
   const [reviews, setReviews] = useState<{ id?: string; _key?: string; type: ReviewType; content: string }[]>([])
 
@@ -264,7 +264,7 @@ export function useEditAnswerForm(onSaved: (problemId: string) => void) {
     setOrigSubject(prob.subject_id)
     setOrigLevel(prob.level_id)
     setOrigCode(prob.code)
-    setStatus((answer.status as AnswerStatus) ?? 'Yet')
+    setStatus((answer.status as AnswerStatus) ?? 'Miss')
     setDuration(answer.duration ?? '')
     setReviews(
       answer.reviews.map((r) => ({ id: r.id, _key: crypto.randomUUID(), type: (r.review_type ?? '不理解') as ReviewType, content: r.content })),

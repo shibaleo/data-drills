@@ -43,10 +43,10 @@ const CELL = 14;
 const GAP = 2;
 const STEP = CELL + GAP;
 const STATUS_ORDER: Record<AnswerStatus, number> = {
-  Yet: 0,
-  Repeat: 1,
-  Check: 2,
-  Recall: 3,
+  Miss: 0,
+  Rough: 1,
+  Fair: 2,
+  Fluent: 3,
   Done: 4,
 };
 

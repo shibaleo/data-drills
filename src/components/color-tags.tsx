@@ -5,10 +5,10 @@ const TAG_BASE = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs fo
 
 /** Fallback colors — DB の answer_status.color が null の場合のみ使用 */
 const STATUS_FALLBACK: Record<AnswerStatus, string> = {
-  Yet:    '#EF4444',
-  Repeat: '#F97316',
-  Check:  '#EAB308',
-  Recall: '#22C55E',
+  Miss:   '#EF4444',
+  Rough:  '#F97316',
+  Fair:   '#EAB308',
+  Fluent: '#22C55E',
   Done:   '#3B82F6',
 }
 

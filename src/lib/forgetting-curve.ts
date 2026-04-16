@@ -11,14 +11,14 @@ import { jstDayDiff, toJSTDateString } from './date-utils'
  *   S = stability (grows with successful reviews)
  *
  * Status → quality mapping (SM-2 inspired):
- *   Yet=1  Repeat=2  Check=3  Recall=4  Done=5
+ *   Miss=1  Rough=2  Fair=3  Fluent=4  Done=5
  */
 
 const STATUS_QUALITY: Record<AnswerStatus, number> = {
-  Yet: 1,
-  Repeat: 2,
-  Check: 3,
-  Recall: 4,
+  Miss: 1,
+  Rough: 2,
+  Fair: 3,
+  Fluent: 4,
   Done: 5,
 }
 
@@ -36,10 +36,10 @@ export function computeStability(qualities: number[]): number {
       // Good recall → stability grows
       S *= 1 + (q - 2) * 0.4 // q=3→1.4x, q=4→1.8x, q=5→2.2x
     } else if (q <= 1) {
-      // No recall (Yet) → stability shrinks but doesn't fully reset
+      // No recall (Miss) → stability shrinks but doesn't fully reset
       S = Math.max(BASE_STABILITY, S * 0.5)
     }
-    // q=2 (Repeat) → stability unchanged
+    // q=2 (Rough) → stability unchanged
   }
   return S
 }

@@ -237,7 +237,7 @@ export default function ScoreDashboardPage() {
         // Sort chronologically
         const sorted = [...dated].sort((a, b) => a.date.localeCompare(b.date));
         const latest = sorted[sorted.length - 1];
-        const lastStatus = latest.status ?? "Yet";
+        const lastStatus = latest.status ?? "Miss";
 
         const score = computeScore(lastStatus, p.standard_time, latest.duration_sec);
         const nextReview = computeNextReview(latest.date, lastStatus, p.standard_time, latest.duration_sec);
@@ -250,7 +250,7 @@ export default function ScoreDashboardPage() {
 
         const answersForHistory = sorted.map((a) => ({
           date: a.date,
-          status: (a.status ?? "Yet") as AnswerStatus,
+          status: (a.status ?? "Miss") as AnswerStatus,
           durationSec: a.duration_sec,
         }));
         const scoreHistory = computeScoreHistory(answersForHistory, p.standard_time);
@@ -336,18 +336,18 @@ export default function ScoreDashboardPage() {
     const overdue = rows.filter((r) => r.daysOverdue > 0).length;
 
     const dist: Record<AnswerStatus, number> = {
-      Yet: 0,
-      Repeat: 0,
-      Check: 0,
-      Recall: 0,
+      Miss: 0,
+      Rough: 0,
+      Fair: 0,
+      Fluent: 0,
       Done: 0,
     };
     for (const r of rows) dist[r.lastStatus]++;
 
     const checkPlus = rows.filter(
       (r) =>
-        (r.lastStatus === "Check" ||
-          r.lastStatus === "Recall" ||
+        (r.lastStatus === "Fair" ||
+          r.lastStatus === "Fluent" ||
           r.lastStatus === "Done") &&
         r.timeScore !== null,
     );

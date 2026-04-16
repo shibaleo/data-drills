@@ -151,7 +151,7 @@ export default function RetentionDetailPage() {
   ]);
   const [filterSubjects, setFilterSubjects] = useState<Set<string>>(new Set());
   const [filterLevels, setFilterLevels] = useState<Set<string>>(new Set());
-  const [filterStatuses, setFilterStatuses] = useState<Set<string>>(() => new Set(["Yet"]));
+  const [filterStatuses, setFilterStatuses] = useState<Set<string>>(() => new Set(["Miss"]));
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const tableRef = useRef<HTMLDivElement>(null);

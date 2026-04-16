@@ -67,13 +67,13 @@ app.get("/", async (c) => {
     let daysUntil: number;
 
     if (!latest) {
-      lastStatus = "Yet";
+      lastStatus = "Miss";
       nextReview = today;
       daysUntil = 0;
     } else {
       lastStatus = (latest.answerStatusId
         ? statusNameMap.get(latest.answerStatusId) as AnswerStatus
-        : null) ?? "Yet";
+        : null) ?? "Miss";
       nextReview = computeNextReview(
         latest.date, lastStatus, p.standardTime, latest.duration,
       );

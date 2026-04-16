@@ -105,19 +105,19 @@ function V({
 /* ── Constants ── */
 
 const STATUS_TEXT_COLORS: Record<AnswerStatus, string> = {
-  Yet: "text-red-400",
-  Repeat: "text-orange-400",
-  Check: "text-yellow-400",
-  Recall: "text-green-400",
+  Miss: "text-red-400",
+  Rough: "text-orange-400",
+  Fair: "text-yellow-400",
+  Fluent: "text-green-400",
   Done: "text-blue-400",
 };
 
-const STATUSES: AnswerStatus[] = ["Yet", "Repeat", "Check", "Recall", "Done"];
+const STATUSES: AnswerStatus[] = ["Miss", "Rough", "Fair", "Fluent", "Done"];
 const STATUS_DESCRIPTIONS: Record<AnswerStatus, string> = {
-  Yet: "解けなかった・全く思い出せない",
-  Repeat: "正解できたがまだ繰り返しが必要",
-  Check: "自力で解けたが少し不安が残る",
-  Recall: "確実に再現できた・自信あり",
+  Miss: "解けなかった・全く思い出せない",
+  Rough: "正解できたがまだ繰り返しが必要",
+  Fair: "自力で解けたが少し不安が残る",
+  Fluent: "確実に再現できた・自信あり",
   Done: "完全に定着した・考えなくても解ける",
 };
 
@@ -133,7 +133,7 @@ export default function AboutPage() {
   // Retention params
   const [baseStability, setBaseStability] = useState(1);
   const [growthFactor, setGrowthFactor] = useState(0.4);
-  const [yetPenalty, setYetPenalty] = useState(0.5);
+  const [missPenalty, setMissPenalty] = useState(0.5);
 
   // FSRS params
   const [fVal, setFVal] = useState(19 / 81);
@@ -145,10 +145,10 @@ export default function AboutPage() {
 
   // Derived multipliers
   const multipliers: Record<AnswerStatus, string> = {
-    Yet: `\\times ${yetPenalty}`,
-    Repeat: "\\times 1.0",
-    Check: `\\times ${(1 + (3 - 2) * growthFactor).toFixed(1)}`,
-    Recall: `\\times ${(1 + (4 - 2) * growthFactor).toFixed(1)}`,
+    Miss: `\\times ${missPenalty}`,
+    Rough: "\\times 1.0",
+    Fair: `\\times ${(1 + (3 - 2) * growthFactor).toFixed(1)}`,
+    Fluent: `\\times ${(1 + (4 - 2) * growthFactor).toFixed(1)}`,
     Done: `\\times ${(1 + (5 - 2) * growthFactor).toFixed(1)}`,
   };
 
@@ -160,7 +160,7 @@ export default function AboutPage() {
           <h2 className="text-base font-semibold mb-2">ステータス（評価）</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             ステータスは各問題の解答後に自己評価される、問題ごとの状態です。<br />
-            不正解の場合はすべて <span style={{ color: STATUS_COLORS.Yet }}>Yet</span> と評価されます。<br />
+            不正解の場合はすべて <span style={{ color: STATUS_COLORS.Miss }}>Miss</span> と評価されます。<br />
             正解の場合は「あと何日くらいこの結果を再現できそうか」を主観で評価します。
           </p>
           <table className="text-xs mt-2 w-full">
@@ -211,7 +211,7 @@ export default function AboutPage() {
                 {`P_i = \\left(\\frac{I_i}{I_{\\max}}\\right)^{\\gamma} \\times 100`}
               </TexBlock>
               <p className="text-xs text-muted-foreground -mt-1 mb-1">
-                <Tex>{"I_i"}</Tex>: 各評価の復習間隔（<Tex>{"i"}</Tex> = Yet, Repeat, Check, Recall, Done）
+                <Tex>{"I_i"}</Tex>: 各評価の復習間隔（<Tex>{"i"}</Tex> = Miss, Rough, Fair, Fluent, Done）
               </p>
               <p className="text-sm text-foreground mt-1">
                 <Tex>{"\\gamma"}</Tex> ={" "}
@@ -311,30 +311,30 @@ export default function AboutPage() {
             </thead>
             <tbody className="text-muted-foreground">
               <tr className="border-b border-border/50">
-                <td className="pr-4 py-1 text-red-400">Yet</td>
+                <td className="pr-4 py-1 text-red-400">Miss</td>
                 <td className="pr-4 py-1 tabular-nums">1</td>
                 <td className="py-1">
                   <V
-                    value={yetPenalty}
-                    onChange={setYetPenalty}
+                    value={missPenalty}
+                    onChange={setMissPenalty}
                     fmt={(v) => `\u00d7${v}`}
                   />
                   <span className="text-muted-foreground ml-1">（後退）</span>
                 </td>
               </tr>
               <tr className="border-b border-border/50">
-                <td className="pr-4 py-1 text-orange-400">Repeat</td>
+                <td className="pr-4 py-1 text-orange-400">Rough</td>
                 <td className="pr-4 py-1 tabular-nums">2</td>
                 <td className="py-1">
                   <Tex>{"\\times 1.0"}</Tex>
                   <span className="text-muted-foreground ml-1">（維持）</span>
                 </td>
               </tr>
-              {(["Check", "Recall", "Done"] as const).map((s) => (
+              {(["Fair", "Fluent", "Done"] as const).map((s) => (
                 <tr key={s} className="border-b border-border/50 last:border-0">
                   <td className={`pr-4 py-1 ${STATUS_TEXT_COLORS[s]}`}>{s}</td>
                   <td className="pr-4 py-1 tabular-nums">
-                    {{ Check: 3, Recall: 4, Done: 5 }[s]}
+                    {{ Fair: 3, Fluent: 4, Done: 5 }[s]}
                   </td>
                   <td className="py-1">
                     <Tex>{multipliers[s]}</Tex>
@@ -354,7 +354,7 @@ export default function AboutPage() {
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             最終解答日から復習間隔 <Tex>{"I_i"}</Tex> 日後が次の復習予定日です。
-            Yet（<Tex>{"I = 0"}</Tex>）は即日復習が必要です。
+            Miss（<Tex>{"I = 0"}</Tex>）は即日復習が必要です。
           </p>
           <p className="text-xs text-muted-foreground mt-2">
             Overdue = 今日 - 復習予定日。正の値は期限超過（復習が必要）を意味します。
@@ -395,10 +395,10 @@ export default function AboutPage() {
           </p>
           <ol className="text-xs text-muted-foreground list-decimal list-inside space-y-1 mt-2">
             <li>
-              Recall / Check で期限切れ（<Tex>{"S"}</Tex>日数超過）— 忘却直前、最優先
+              Fluent / Fair で期限切れ（<Tex>{"S"}</Tex>日数超過）— 忘却直前、最優先
             </li>
-            <li>Repeat で{stability.Repeat}日以上経過 — 忘却リスク高</li>
-            <li>Yet で複数回着手済み — 定着しかけている</li>
+            <li>Rough で{stability.Rough}日以上経過 — 忘却リスク高</li>
+            <li>Miss で複数回着手済み — 定着しかけている</li>
             <li>新規問題 — 時間が余った場合のみ</li>
           </ol>
           <p className="text-sm text-muted-foreground leading-relaxed mt-2">

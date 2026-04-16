@@ -9,7 +9,7 @@ export function nextStatus(
     .filter((a) => a.date)
     .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
   const last = sorted[0]?.status as AnswerStatus | undefined
-  if (!last) return 'Yet'
+  if (!last) return 'Miss'
   const idx = ANSWER_STATUSES.indexOf(last)
   return idx >= 0 && idx < ANSWER_STATUSES.length - 1
     ? ANSWER_STATUSES[idx + 1]

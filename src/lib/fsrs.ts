@@ -26,18 +26,18 @@ const TIME_COEFF_C = 0.5
 
 /** Stability initial value (days until R=90%) per status */
 export const STATUS_STABILITY: Record<AnswerStatus, number> = {
-  Yet: 0,
-  Repeat: 7,
-  Check: 29,
-  Recall: 65,
+  Miss: 0,
+  Rough: 7,
+  Fair: 29,
+  Fluent: 65,
   Done: 180,
 }
 
 export const STATUS_COLORS: Record<AnswerStatus, string> = {
-  Yet: '#ef4444',     // red
-  Repeat: '#f97316',  // orange
-  Check: '#eab308',   // yellow
-  Recall: '#22c55e',  // green
+  Miss: '#ef4444',    // red
+  Rough: '#f97316',   // orange
+  Fair: '#eab308',    // yellow
+  Fluent: '#22c55e',  // green
   Done: '#3b82f6',    // blue
 }
 
@@ -104,7 +104,7 @@ export function computeNextReview(
 ): string {
   let s = getStability(status)
   if (s <= 0) {
-    // Yet → immediate review needed (next = last answer date)
+    // Miss → immediate review needed (next = last answer date)
     return lastDateStr.slice(0, 10)
   }
   if (standardTimeSec && durationSec && durationSec > 0) {
