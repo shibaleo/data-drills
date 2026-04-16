@@ -319,7 +319,7 @@ function ScheduleChart({
 
 /* ── Summary Card ── */
 
-type SummaryFilter = "overdue" | "today" | "week";
+type SummaryFilter = "today" | "week";
 
 function SummaryCard({
   label,
@@ -332,13 +332,10 @@ function SummaryCard({
   count: number;
   active: boolean;
   onClick: () => void;
-  variant: "destructive" | "default" | "muted";
+  variant: "default" | "muted";
 }) {
   const base = "flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors select-none";
   const variants = {
-    destructive: active
-      ? "bg-red-500/15 border-red-500/40 text-red-500"
-      : "hover:bg-red-500/5 text-red-500/70",
     default: active
       ? "bg-foreground/10 border-foreground/30 text-foreground"
       : "hover:bg-foreground/5 text-foreground/70",
@@ -625,14 +622,12 @@ export default function SchedulePage() {
   }, [rows, filterSubjects, filterLevels, filterStatuses]);
 
   const summaryCounts = useMemo(() => ({
-    overdue: baseFilteredRows.filter((r) => r.daysUntil < 0).length,
     today: baseFilteredRows.filter((r) => r.daysUntil === 0).length,
     week: baseFilteredRows.filter((r) => r.daysUntil > 0 && r.daysUntil <= 7).length,
   }), [baseFilteredRows]);
 
   const displayRows = useMemo(() => {
     if (!summaryFilter) return baseFilteredRows;
-    if (summaryFilter === "overdue") return baseFilteredRows.filter((r) => r.daysUntil < 0);
     if (summaryFilter === "today") return baseFilteredRows.filter((r) => r.daysUntil === 0);
     return baseFilteredRows.filter((r) => r.daysUntil > 0 && r.daysUntil <= 7);
   }, [baseFilteredRows, summaryFilter]);
@@ -687,13 +682,6 @@ export default function SchedulePage() {
         <>
           {/* Summary cards + Filters */}
           <div className="flex items-center gap-2 flex-wrap">
-            <SummaryCard
-              label="期限超過"
-              count={summaryCounts.overdue}
-              active={summaryFilter === "overdue"}
-              onClick={() => setSummaryFilter((p) => p === "overdue" ? null : "overdue")}
-              variant="destructive"
-            />
             <SummaryCard
               label="今日"
               count={summaryCounts.today}
@@ -761,7 +749,11 @@ export default function SchedulePage() {
           </div>
 
           {/* Table */}
-          <div ref={tableRef} className="rounded-md border overflow-auto" style={{ maxHeight: "calc(10 * 2.25rem)" }}>
+          <div
+            ref={tableRef}
+            className="rounded-md border overflow-auto resize-y"
+            style={{ height: "calc(10 * 2.25rem)", minHeight: "6rem", maxHeight: "80vh" }}
+          >
             <Table className="table-fixed">
               <TableHeader>
                 {table.getHeaderGroups().map((hg) => (
@@ -784,18 +776,11 @@ export default function SchedulePage() {
               <TableBody>
                 {table.getRowModel().rows.map((row) => {
                   const pid = row.original.problemId;
-                  const isOverdue = row.original.daysUntil < 0;
                   return (
                   <TableRow
                     key={row.id}
                     data-problem-id={pid}
-                    className={`cursor-pointer ${
-                      pid === selectedId
-                        ? "bg-accent"
-                        : isOverdue
-                          ? "bg-red-500/5"
-                          : ""
-                    }`}
+                    className={`cursor-pointer ${pid === selectedId ? "bg-accent" : ""}`}
                     onClick={() => pid === selectedId ? openDetail(pid) : handleSelect(pid)}
                   >
                     <TableCell className="w-4 px-2">
