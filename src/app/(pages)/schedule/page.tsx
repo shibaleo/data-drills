@@ -15,7 +15,7 @@ import { useProject } from "@/hooks/use-project";
 import { useLookupMaps } from "@/hooks/use-lookup-maps";
 import { usePageTitle } from "@/lib/page-context";
 import type { DDProblem, DDAnswer, DDReview, DDReviewTag, DDTag, DDProblemFile } from "@/lib/api-types";
-import type { ProblemWithAnswers } from "@/components/problem-card";
+import { OpaqueTag, type ProblemWithAnswers } from "@/components/problem-card";
 import type { Answer, Review, ProblemFile } from "@/lib/types";
 import { useProblemDialogs } from "@/hooks/use-problem-dialogs";
 import {
@@ -53,6 +53,10 @@ interface ScheduleRow {
   problemId: string;
   code: string;
   name: string;
+  subjectName: string;
+  subjectColor: string | null;
+  levelName: string;
+  levelColor: string | null;
   color: string;
   lastStatus: AnswerStatus;
   statusColor: string;
@@ -83,14 +87,20 @@ function addDays(dateStr: string, days: number): string {
   return `${y}-${m}-${dd}`;
 }
 
+type ChartColorMode = "problem" | "status";
+
 function ScheduleChart({
   items,
   today,
   onSelect,
+  selectedId,
+  colorMode = "problem",
 }: {
   items: ScheduleRow[];
   today: string;
   onSelect?: (problemId: string) => void;
+  selectedId?: string | null;
+  colorMode?: ChartColorMode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -136,13 +146,13 @@ function ScheduleChart({
     scrollRef.current.scrollLeft = todayX - containerW / 3;
   }, [todayIdx]);
 
-  const MIN_ROWS = 15;
-  const maxStack = Math.max(
-    MIN_ROWS,
-    ...dates.map((d) => (grouped.get(d) ?? []).length),
-  );
+  const MIN_ROWS = 10;
+  const maxCount = Math.max(0, ...dates.map((d) => (grouped.get(d) ?? []).length));
+  const maxStack = Math.max(MIN_ROWS, maxCount + 2);
+  const TOP_AXIS_H = 16;
+  const BOTTOM_AXIS_H = 20;
   const chartWidth = dates.length * STEP;
-  const chartHeight = maxStack * STEP + 28;
+  const chartHeight = maxStack * STEP + TOP_AXIS_H + BOTTOM_AXIS_H;
   const Y_AXIS_W = 28;
 
   // Y-axis tick values (every 5)
@@ -164,7 +174,7 @@ function ScheduleChart({
           <text
             key={n}
             x={Y_AXIS_W - 4}
-            y={chartHeight - 28 - n * STEP + CELL / 2}
+            y={chartHeight - BOTTOM_AXIS_H - n * STEP + CELL / 2}
             textAnchor="end"
             dominantBaseline="central"
             className="fill-muted-foreground"
@@ -184,9 +194,9 @@ function ScheduleChart({
         {todayIdx >= 0 && (
           <line
             x1={todayIdx * STEP + CELL / 2}
-            y1={0}
+            y1={TOP_AXIS_H}
             x2={todayIdx * STEP + CELL / 2}
-            y2={chartHeight - 24}
+            y2={chartHeight - BOTTOM_AXIS_H}
             stroke="hsl(var(--foreground))"
             strokeWidth={1}
             strokeDasharray="3 3"
@@ -205,7 +215,7 @@ function ScheduleChart({
                 <rect
                   key={`bg-${i}`}
                   x={x}
-                  y={chartHeight - 28 - (i + 1) * STEP}
+                  y={chartHeight - BOTTOM_AXIS_H - (i + 1) * STEP}
                   width={CELL}
                   height={CELL}
                   rx={2}
@@ -215,37 +225,73 @@ function ScheduleChart({
                 />
               ))}
               {/* Filled blocks */}
-              {dayItems.map((item, stackIdx) => (
-                <rect
-                  key={item.problemId}
-                  x={x}
-                  y={chartHeight - 28 - (stackIdx + 1) * STEP}
-                  width={CELL}
-                  height={CELL}
-                  rx={2}
-                  fill={item.statusColor}
-                  opacity={0.85}
-                  className="cursor-pointer"
-                  onClick={() => onSelect?.(item.problemId)}
-                >
-                  <title>
-                    {item.code} {item.name}
-                  </title>
-                </rect>
-              ))}
-              {/* Date labels: every 7 days + today */}
+              {dayItems.map((item, stackIdx) => {
+                const bx = x;
+                const by = chartHeight - BOTTOM_AXIS_H - (stackIdx + 1) * STEP;
+                const isSelected = item.problemId === selectedId;
+                const blockColor = colorMode === "status" ? item.statusColor : item.color;
+                return (
+                  <g key={item.problemId}>
+                    {isSelected && (
+                      <rect
+                        x={bx - 2}
+                        y={by - 2}
+                        width={CELL + 4}
+                        height={CELL + 4}
+                        rx={3}
+                        fill="none"
+                        stroke={blockColor}
+                        strokeWidth={2}
+                        opacity={0.9}
+                        className="animate-pulse"
+                      />
+                    )}
+                    <rect
+                      x={bx}
+                      y={by}
+                      width={CELL}
+                      height={CELL}
+                      rx={2}
+                      fill={blockColor}
+                      opacity={isSelected ? 1 : 0.85}
+                      className="cursor-pointer"
+                      onClick={() => onSelect?.(item.problemId)}
+                    >
+                      <title>
+                        {item.code} {item.name}
+                      </title>
+                    </rect>
+                  </g>
+                );
+              })}
+              {/* Top axis: relative days */}
+              {(colIdx % 7 === 0 || isToday) && (() => {
+                const diff = todayIdx >= 0 ? colIdx - todayIdx : 0;
+                const label = diff === 0 ? "今日" : diff > 0 ? `+${diff}` : `▲ ${Math.abs(diff)}`;
+                return (
+                  <text
+                    x={x + CELL / 2}
+                    y={10}
+                    textAnchor="middle"
+                    className="fill-muted-foreground"
+                    fontSize={9}
+                    fontWeight={isToday ? 700 : 400}
+                  >
+                    {label}
+                  </text>
+                );
+              })()}
+              {/* Bottom axis: absolute dates */}
               {(colIdx % 7 === 0 || isToday) && (
                 <text
                   x={x + CELL / 2}
-                  y={chartHeight - 6}
+                  y={chartHeight - 4}
                   textAnchor="middle"
                   className="fill-muted-foreground"
                   fontSize={9}
                   fontWeight={isToday ? 700 : 400}
                 >
-                  {isToday
-                    ? "今日"
-                    : `${new Date(date + "T12:00:00").getMonth() + 1}/${new Date(date + "T12:00:00").getDate()}`}
+                  {`${new Date(date + "T12:00:00").getMonth() + 1}/${new Date(date + "T12:00:00").getDate()}`}
                 </text>
               )}
             </g>
@@ -261,14 +307,29 @@ function ScheduleChart({
 
 const columns: ColumnDef<ScheduleRow>[] = [
   {
-    id: "color",
-    cell: ({ row }) => (
-      <div
-        className="size-2.5 rounded-full"
-        style={{ backgroundColor: row.original.color }}
-      />
-    ),
-    size: 32,
+    accessorKey: "lastStatus",
+    header: ({ column }) => <SortHeader column={column}>Status</SortHeader>,
+    cell: ({ getValue }) => {
+      const status = getValue<AnswerStatus>();
+      return <StatusTag status={status} opaque className="text-[10px]" />;
+    },
+    size: 70,
+  },
+  {
+    accessorKey: "subjectName",
+    header: ({ column }) => <SortHeader column={column}>Subject</SortHeader>,
+    cell: ({ row }) => row.original.subjectName ? (
+      <OpaqueTag name={row.original.subjectName} color={row.original.subjectColor} />
+    ) : null,
+    size: 70,
+  },
+  {
+    accessorKey: "levelName",
+    header: ({ column }) => <SortHeader column={column}>Level</SortHeader>,
+    cell: ({ row }) => row.original.levelName ? (
+      <OpaqueTag name={row.original.levelName} color={row.original.levelColor} />
+    ) : null,
+    size: 70,
   },
   {
     accessorKey: "code",
@@ -276,23 +337,17 @@ const columns: ColumnDef<ScheduleRow>[] = [
     cell: ({ getValue }) => (
       <span className="font-mono text-xs">{getValue<string>()}</span>
     ),
+    size: 64,
   },
   {
     accessorKey: "name",
     header: ({ column }) => <SortHeader column={column}>Name</SortHeader>,
     cell: ({ getValue }) => (
-      <span className="max-w-[200px] truncate block text-xs">
+      <span className="truncate block text-xs">
         {getValue<string>()}
       </span>
     ),
-  },
-  {
-    accessorKey: "lastStatus",
-    header: ({ column }) => <SortHeader column={column}>Status</SortHeader>,
-    cell: ({ getValue }) => {
-      const status = getValue<AnswerStatus>();
-      return <StatusTag status={status} opaque className="text-[10px]" />;
-    },
+    size: 300,
   },
   {
     accessorKey: "nextReview",
@@ -302,10 +357,12 @@ const columns: ColumnDef<ScheduleRow>[] = [
         {getValue<string>()}
       </span>
     ),
+    size: 100,
   },
   {
     accessorKey: "daysUntil",
     header: ({ column }) => <SortHeader column={column}>Days</SortHeader>,
+    size: 64,
     cell: ({ getValue }) => {
       const d = getValue<number>();
       return (
@@ -325,12 +382,13 @@ const columns: ColumnDef<ScheduleRow>[] = [
   },
   {
     accessorKey: "reviewCount",
-    header: ({ column }) => <SortHeader column={column}>Cnt</SortHeader>,
+    header: ({ column }) => <SortHeader column={column}>Ans</SortHeader>,
     cell: ({ getValue }) => (
       <span className="text-xs text-muted-foreground tabular-nums">
         {getValue<number>()}
       </span>
     ),
+    size: 48,
   },
 ];
 
@@ -338,8 +396,23 @@ const columns: ColumnDef<ScheduleRow>[] = [
 
 export default function SchedulePage() {
   usePageTitle("復習スケジュール");
-  const { currentProject } = useProject();
+  const { currentProject, subjects, levels } = useProject();
   const { statusMap, statusPointMap, subjectColorMap } = useLookupMaps();
+  const subjectNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of subjects) m.set(s.id, s.name);
+    return m;
+  }, [subjects]);
+  const levelNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const l of levels) m.set(l.id, l.name);
+    return m;
+  }, [levels]);
+  const levelColorMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const l of levels) m.set(l.id, l.color ?? null);
+    return m;
+  }, [levels]);
   const [rows, setRows] = useState<ScheduleRow[]>([]);
   const [allProblems, setAllProblems] = useState<ProblemWithAnswers[]>([]);
   const [loading, setLoading] = useState(true);
@@ -347,6 +420,7 @@ export default function SchedulePage() {
     { id: "daysUntil", desc: false },
   ]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [chartColorMode, setChartColorMode] = useState<ChartColorMode>("problem");
   const tableRef = useRef<HTMLDivElement>(null);
 
   const now = useMemo(() => new Date(), []);
@@ -500,6 +574,10 @@ export default function SchedulePage() {
           problemId: p.id,
           code: p.code,
           name: p.name ?? "",
+          subjectName: p.subjectId ? subjectNameMap.get(p.subjectId) ?? "" : "",
+          subjectColor: p.subjectId ? subjectColorMap.get(p.subjectId) ?? null : null,
+          levelName: p.levelId ? levelNameMap.get(p.levelId) ?? "" : "",
+          levelColor: p.levelId ? levelColorMap.get(p.levelId) ?? null : null,
           color,
           lastStatus,
           statusColor: STATUS_COLORS[lastStatus],
@@ -515,7 +593,7 @@ export default function SchedulePage() {
     } finally {
       setLoading(false);
     }
-  }, [currentProject, statusMap, statusPointMap, subjectColorMap, todayStr]);
+  }, [currentProject, statusMap, statusPointMap, subjectColorMap, subjectNameMap, levelNameMap, levelColorMap, todayStr]);
 
   useEffect(() => {
     fetchData();
@@ -561,7 +639,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="p-3 md:p-4 flex flex-col gap-2 flex-1 min-h-0">
+    <div className="p-3 md:p-4 flex flex-col gap-2">
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">
           Loading...
@@ -572,19 +650,39 @@ export default function SchedulePage() {
         <>
           {/* Schedule chart */}
           <div className="shrink-0 rounded-md border p-3">
-            <ScheduleChart items={chartRows} today={todayStr} onSelect={handleSelect} />
+            <div className="flex justify-end mb-1">
+              <div className="inline-flex rounded-md border text-[10px]">
+                <button
+                  type="button"
+                  className={`px-2 py-0.5 rounded-l-md transition-colors ${chartColorMode === "problem" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  onClick={() => setChartColorMode("problem")}
+                >
+                  Problem
+                </button>
+                <button
+                  type="button"
+                  className={`px-2 py-0.5 rounded-r-md transition-colors ${chartColorMode === "status" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  onClick={() => setChartColorMode("status")}
+                >
+                  Status
+                </button>
+              </div>
+            </div>
+            <ScheduleChart items={chartRows} today={todayStr} onSelect={handleSelect} selectedId={selectedId} colorMode={chartColorMode} />
           </div>
 
           {/* Table */}
-          <div ref={tableRef} className="flex-1 min-h-0 rounded-md border overflow-auto">
-            <Table>
+          <div ref={tableRef} className="rounded-md border overflow-auto" style={{ maxHeight: "calc(10 * 2.25rem)" }}>
+            <Table className="table-fixed">
               <TableHeader>
                 {table.getHeaderGroups().map((hg) => (
                   <TableRow key={hg.id}>
+                    <TableHead className="sticky top-0 z-10 bg-background w-4 px-2" />
                     {hg.headers.map((header) => (
                       <TableHead
                         key={header.id}
                         className="sticky top-0 z-10 bg-background"
+                        style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
                       >
                         {header.isPlaceholder
                           ? null
@@ -605,10 +703,16 @@ export default function SchedulePage() {
                     key={row.id}
                     data-problem-id={pid}
                     className={`cursor-pointer ${pid === selectedId ? "bg-accent" : ""}`}
-                    onClick={() => openDetail(pid)}
+                    onClick={() => pid === selectedId ? openDetail(pid) : handleSelect(pid)}
                   >
+                    <TableCell className="w-4 px-2">
+                      <div
+                        className="size-2.5 rounded-full"
+                        style={{ backgroundColor: row.original.color }}
+                      />
+                    </TableCell>
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell key={cell.id} style={{ width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined }}>
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),

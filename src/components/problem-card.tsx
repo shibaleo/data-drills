@@ -17,7 +17,7 @@ import { Card, CardContent } from '@/components/ui/card'
 
 const TAG_BASE = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs'
 
-function OpaqueTag({ name, color }: { name: string; color: string | null }) {
+export function OpaqueTag({ name, color }: { name: string; color: string | null }) {
   if (!color) {
     return <span className={`${TAG_BASE} bg-muted text-muted-foreground`}>{name}</span>
   }
