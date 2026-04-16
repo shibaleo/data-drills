@@ -97,12 +97,12 @@ function OverdueBadge() {
 }
 
 const navItems: NavItem[] = [
+  { href: "/schedule", label: "Schedule", icon: CalendarDays, Badge: OverdueBadge, dividerAfter: true },
   { href: "/flashcards", label: "Flashcards", icon: Layers },
   { href: "/timeline", label: "Timeline", icon: Clock },
   { href: "/answers", label: "Answers", icon: PenLine },
   { href: "/problems", label: "Problems", icon: TableProperties },
   { href: "/stats", label: "Stats", icon: BarChart3 },
-  { href: "/stats/schedule", label: "Schedule", icon: CalendarDays, Badge: OverdueBadge },
   { href: "/notes", label: "Notes", icon: FileText },
   { href: "/topics", label: "Topics", icon: List },
   { href: "/tags", label: "Tags", icon: Tag, dividerAfter: true },
@@ -124,7 +124,7 @@ export function SidebarNav({
       <nav className="flex-1 p-2 overflow-y-auto">
         <div className="space-y-0.5">
           {navItems.map((item) => {
-            // More specific nav items take priority (e.g. /stats/schedule over /stats)
+            // More specific nav items take priority over shorter prefix matches
             const active =
               pathname.startsWith(item.href) &&
               !navItems.some(

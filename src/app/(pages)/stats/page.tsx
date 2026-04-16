@@ -160,7 +160,7 @@ export default function StatsPage() {
         {!loading && (
           <Card
             className="cursor-pointer transition-colors hover:bg-card/90"
-            onClick={() => router.push("/stats/schedule")}
+            onClick={() => router.push("/schedule")}
           >
             <CardHeader>
               <CardTitle className="text-sm font-medium flex items-center gap-2">
