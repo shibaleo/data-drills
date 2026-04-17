@@ -11,7 +11,7 @@ import { Fab } from "@/components/shared/fab";
 import { ProblemCard, type ProblemWithAnswers } from "@/components/problem-card";
 import { ProblemEditDialog } from "@/components/problem-edit-dialog";
 import { AnswerDialog } from "@/components/answer-dialog";
-import type { Problem, AnswerStatus } from "@/lib/types";
+import type { Problem } from "@/lib/types";
 
 export default function TimelinePage() {
   usePageTitle("Timeline");
@@ -86,7 +86,7 @@ export default function TimelinePage() {
               key={p.id}
               problem={p}
               now={now}
-              onCheck={(prob) => answerForm.openForProblem(prob as Problem & { answers: { date: string | null; status: AnswerStatus | null }[] })}
+              onCheck={(prob) => answerForm.openForProblem(prob as Problem & { answers: { date: string | null; status: string | null }[] })}
               onEditProblem={handleEditProblem}
               onEditAnswer={editForm.openFor}
               onDelete={handleDeleteProblem}

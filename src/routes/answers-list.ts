@@ -3,8 +3,6 @@ import { db } from "@/lib/db";
 import { problem, answer, answerStatus, subject, level } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { secondsToHmsNullable } from "@/lib/duration";
-import type { AnswerStatus } from "@/lib/types";
-
 const app = new Hono();
 
 /**
@@ -47,7 +45,7 @@ app.get("/", async (c) => {
       problemId: a.problemId,
       date: a.date,
       duration: secondsToHmsNullable(a.duration),
-      status: (st?.name as AnswerStatus | undefined) ?? null,
+      status: st?.name ?? null,
       statusColor: st?.color ?? null,
       code: p?.code ?? "",
       problemName: p?.name ?? "",

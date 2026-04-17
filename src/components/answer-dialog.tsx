@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
-import type { AnswerStatus, ReviewType } from '@/lib/types'
-import { ANSWER_STATUSES, REVIEW_TYPES } from '@/lib/types'
+import type { ReviewType } from '@/lib/types'
+import { REVIEW_TYPES } from '@/lib/types'
 import { StatusTag } from '@/components/color-tags'
 import { Markdown } from '@/components/markdown'
 import { CodeCombobox } from '@/components/code-combobox'
-import { useProject, useLookup } from '@/hooks/use-project'
+import { useProject } from '@/hooks/use-project'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { MarkdownEditor } from '@/components/markdown-editor'
@@ -41,8 +41,8 @@ interface AnswerDialogProps {
   checkpointMap?: Record<string, string>
   nameMap?: Record<string, string>
   // answer fields
-  status: AnswerStatus
-  onStatusChange: (s: AnswerStatus) => void
+  status: string
+  onStatusChange: (s: string) => void
   duration: string
   onDurationChange: (d: string) => void
   // reviews
@@ -79,8 +79,7 @@ export function AnswerDialog({
   saveLabel,
   onSave,
 }: AnswerDialogProps) {
-  const { currentProject, subjects, levels } = useProject()
-  const { statusColor } = useLookup()
+  const { currentProject, subjects, levels, statuses } = useProject()
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
@@ -158,14 +157,14 @@ export function AnswerDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label>ステータス</Label>
-              <Select value={status} onValueChange={(v) => onStatusChange(v as AnswerStatus)}>
+              <Select value={status} onValueChange={(v) => onStatusChange(v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ANSWER_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      <StatusTag status={s} color={statusColor(s)} opaque />
+                  {statuses.map((s) => (
+                    <SelectItem key={s.id} value={s.name}>
+                      <StatusTag status={s.name} color={s.color} opaque />
                     </SelectItem>
                   ))}
                 </SelectContent>

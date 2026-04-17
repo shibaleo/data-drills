@@ -1,4 +1,3 @@
-import type { AnswerStatus } from './types'
 import { jstDayDiff, toJSTDateString } from './date-utils'
 
 /**
@@ -10,17 +9,9 @@ import { jstDayDiff, toJSTDateString } from './date-utils'
  *   t = elapsed days since last review
  *   S = stability (grows with successful reviews)
  *
- * Status → quality mapping (SM-2 inspired):
- *   Miss=1  Rough=2  Fair=3  Fluent=4  Done=5
+ * Quality is derived from `sortOrder + 1` (1-based).
+ * No hardcoded status names — all status data comes from DB.
  */
-
-const STATUS_QUALITY: Record<AnswerStatus, number> = {
-  Miss: 1,
-  Rough: 2,
-  Fair: 3,
-  Fluent: 4,
-  Done: 5,
-}
 
 const BASE_STABILITY = 1 // days – initial stability for a fresh card
 
@@ -33,13 +24,13 @@ export function computeStability(qualities: number[]): number {
   let S = BASE_STABILITY
   for (const q of qualities) {
     if (q >= 3) {
-      // Good recall → stability grows
+      // Good recall ��� stability grows
       S *= 1 + (q - 2) * 0.4 // q=3→1.4x, q=4→1.8x, q=5→2.2x
     } else if (q <= 1) {
-      // No recall (Miss) → stability shrinks but doesn't fully reset
+      // No recall → stability shrinks but doesn't fully reset
       S = Math.max(BASE_STABILITY, S * 0.5)
     }
-    // q=2 (Rough) → stability unchanged
+    // q=2 → stability unchanged
   }
   return S
 }
@@ -52,10 +43,11 @@ export function retention(elapsedDays: number, stability: number): number {
 }
 
 /**
- * Map AnswerStatus to quality number (1-5).
+ * Convert sortOrder (0-based) to quality (1-based).
+ * Answers without a status default to quality 1 (worst).
  */
-export function statusToQuality(status: AnswerStatus | null): number {
-  return status ? (STATUS_QUALITY[status] ?? 1) : 1
+export function sortOrderToQuality(sortOrder: number | undefined): number {
+  return sortOrder !== undefined ? sortOrder + 1 : 1
 }
 
 export interface ForgettingInfo {
@@ -84,21 +76,21 @@ export function parseDurationSec(d: string | null): number | null {
 /**
  * Compute forgetting info for a problem given its answers (any order).
  * Returns null if the problem has no answers with dates.
- * If `point` is provided on an answer, it is used directly as the quality value.
- * Otherwise falls back to the hardcoded status→quality mapping.
+ * `sortOrder` on each answer is used to derive quality (sortOrder + 1).
+ * Falls back to `point` if provided, then sortOrder.
  */
 export function computeForgettingInfo(
-  answers: { date: string | null; status: AnswerStatus | null; point?: number; duration?: string | null }[],
+  answers: { date: string | null; sortOrder?: number; point?: number; duration?: string | null }[],
   now: Date = new Date(),
 ): ForgettingInfo | null {
   // Sort chronologically
   const dated = answers
-    .filter((a): a is { date: string; status: AnswerStatus | null; point?: number; duration?: string | null } => a.date !== null)
+    .filter((a): a is typeof a & { date: string } => a.date !== null)
     .sort((a, b) => a.date.localeCompare(b.date))
 
   if (dated.length === 0) return null
 
-  const qualities = dated.map((a) => a.point ?? statusToQuality(a.status))
+  const qualities = dated.map((a) => a.point ?? sortOrderToQuality(a.sortOrder))
   const stability = computeStability(qualities)
   const elapsedDays = Math.max(0, jstDayDiff(toJSTDateString(now), dated[dated.length - 1].date))
   const ret = retention(elapsedDays, stability)

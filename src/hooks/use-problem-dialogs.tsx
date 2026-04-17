@@ -10,7 +10,7 @@ import { ProblemEditDialog } from "@/components/problem-edit-dialog";
 import { AnswerDialog } from "@/components/answer-dialog";
 import { Fab } from "@/components/shared/fab";
 import type { ProblemWithAnswers, AnswerWithReviews } from "@/components/problem-card";
-import type { Problem, AnswerStatus } from "@/lib/types";
+import type { Problem } from "@/lib/types";
 
 /**
  * Shared hook that wires up ProblemDetailDialog, ProblemEditDialog,
@@ -87,7 +87,7 @@ export function useProblemDialogs({
           }}
           onCheck={(problem) => {
             setDetailOpen(false);
-            answerForm.openForProblem(problem as Problem & { answers: { date: string | null; status: AnswerStatus | null }[] });
+            answerForm.openForProblem(problem as Problem & { answers: { date: string | null; status: string | null }[] });
           }}
           onDelete={handleDeleteProblem}
           onPdfLinked={() => onDataChanged()}

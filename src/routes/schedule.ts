@@ -4,8 +4,6 @@ import { problem, answer, answerStatus, subject, level } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { computeNextReview, computeDaysOverdue } from "@/lib/fsrs";
 import { toJSTDateString } from "@/lib/date-utils";
-import { STATUS_COLORS } from "@/lib/fsrs";
-import type { AnswerStatus } from "@/lib/types";
 import { problemColor } from "@/lib/problem-color";
 
 const app = new Hono();
@@ -33,13 +31,14 @@ app.get("/", async (c) => {
     db.select().from(answer)
       .where(inArray(answer.problemId, problemIds))
       .orderBy(answer.date),
-    db.select().from(answerStatus),
+    db.select().from(answerStatus).orderBy(answerStatus.sortOrder),
     db.select().from(subject).where(eq(subject.projectId, projectId)),
     db.select().from(level).where(eq(level.projectId, projectId)),
   ]);
 
-  // Lookups
-  const statusNameMap = new Map(statuses.map((s) => [s.id, s.name]));
+  // Lookups — keyed by id for full status row access
+  const statusMap = new Map(statuses.map((s) => [s.id, s]));
+  const defaultStatus = statuses[0]; // lowest sortOrder
   const subjectMap = new Map(subjects.map((s) => [s.id, s]));
   const levelMap = new Map(levels.map((l) => [l.id, l]));
 
@@ -62,20 +61,19 @@ app.get("/", async (c) => {
 
   const data = problems.map((p) => {
     const latest = latestAnswer.get(p.id);
-    let lastStatus: AnswerStatus;
+    let statusRow = defaultStatus;
     let nextReview: string;
     let daysUntil: number;
 
     if (!latest) {
-      lastStatus = "Miss";
       nextReview = today;
       daysUntil = 0;
     } else {
-      lastStatus = (latest.answerStatusId
-        ? statusNameMap.get(latest.answerStatusId) as AnswerStatus
-        : null) ?? "Miss";
+      if (latest.answerStatusId) {
+        statusRow = statusMap.get(latest.answerStatusId) ?? defaultStatus;
+      }
       nextReview = computeNextReview(
-        latest.date, lastStatus, p.standardTime, latest.duration,
+        latest.date, statusRow.stabilityDays, p.standardTime, latest.duration,
       );
       daysUntil = -computeDaysOverdue(nextReview, today);
     }
@@ -93,8 +91,8 @@ app.get("/", async (c) => {
       levelId: p.levelId,
       levelName: lvl?.name ?? "",
       levelColor: lvl?.color ?? null,
-      lastStatus,
-      statusColor: STATUS_COLORS[lastStatus],
+      lastStatus: statusRow.name,
+      statusColor: statusRow.color ?? "#888",
       nextReview,
       daysUntil,
       answerCount: answerCounts.get(p.id) ?? 0,

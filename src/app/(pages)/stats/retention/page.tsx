@@ -39,7 +39,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ANSWER_STATUSES } from "@/lib/types";
 import { SortHeader } from "@/app/(pages)/problems/columns";
 
 /* ── Table row type ── */
@@ -141,7 +140,7 @@ const columns: ColumnDef<RowData>[] = [
 
 export default function RetentionDetailPage() {
   usePageTitle("保持率推移");
-  const { currentProject, subjects, levels } = useProject();
+  const { currentProject, subjects, levels, statuses } = useProject();
   const [allMetas, setAllMetas] = useState<ProblemRetentionMeta[]>([]);
   const [colorByProblem, setColorByProblem] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -196,7 +195,7 @@ export default function RetentionDetailPage() {
     return allMetas.filter((m) => {
       if (filterSubjects.size > 0 && !filterSubjects.has(m.subjectId)) return false;
       if (filterLevels.size > 0 && !filterLevels.has(m.levelId)) return false;
-      if (filterStatuses.size > 0 && filterStatuses.size < ANSWER_STATUSES.length) {
+      if (filterStatuses.size > 0 && filterStatuses.size < statuses.length) {
         const lastStatus = m.dated[m.dated.length - 1]?.status;
         if (!lastStatus || !filterStatuses.has(lastStatus)) return false;
       }
@@ -314,7 +313,7 @@ export default function RetentionDetailPage() {
               width="w-[160px]"
             />
             <CheckboxFilter
-              items={ANSWER_STATUSES.map((s) => ({ value: s, label: s }))}
+              items={statuses.map((s) => ({ value: s.name, label: s.name }))}
               selected={filterStatuses}
               onChange={setFilterStatuses}
               allLabel="All Statuses"

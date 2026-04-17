@@ -16,6 +16,17 @@ interface LookupItem {
   point?: number;
 }
 
+/** Full answer_status row from the API */
+export interface StatusItem {
+  id: string;
+  name: string;
+  color: string | null;
+  point: number;
+  sortOrder: number;
+  stabilityDays: number;
+  description: string | null;
+}
+
 interface ProjectContextValue {
   projects: Project[];
   currentProject: Project | null;
@@ -23,7 +34,7 @@ interface ProjectContextValue {
   refresh: () => Promise<void>;
   subjects: LookupItem[];
   levels: LookupItem[];
-  statuses: LookupItem[];
+  statuses: StatusItem[];
   filterSubjectId: string | null;
   setFilterSubjectId: (id: string | null) => void;
   filterLevelId: string | null;
@@ -50,8 +61,9 @@ export function useLookup() {
   function subjectName(id: string) { return subjects.find((s) => s.id === id)?.name ?? ''; }
   function subjectColor(id: string) { return subjects.find((s) => s.id === id)?.color ?? ''; }
   function statusColor(name: string) { return statuses.find((s) => s.name === name)?.color ?? null; }
+  function statusStability(name: string) { return statuses.find((s) => s.name === name)?.stabilityDays ?? 0; }
 
-  return { levelName, levelColor, subjectName, subjectColor, statusColor };
+  return { levelName, levelColor, subjectName, subjectColor, statusColor, statusStability };
 }
 
 const STORAGE_KEY = "dd_current_project";
@@ -61,7 +73,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [currentProject, setCurrentProjectState] = useState<Project | null>(null);
   const [subjects, setSubjects] = useState<LookupItem[]>([]);
   const [levels, setLevels] = useState<LookupItem[]>([]);
-  const [statuses, setStatuses] = useState<LookupItem[]>([]);
+  const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [filterSubjectId, setFilterSubjectId] = useState<string | null>(null);
   const [filterLevelId, setFilterLevelId] = useState<string | null>(null);
 
@@ -87,7 +99,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     Promise.all([
       fetchAllPages<LookupItem>(`/projects/${currentProject.id}/subjects`),
       fetchAllPages<LookupItem>(`/projects/${currentProject.id}/levels`),
-      fetchAllPages<LookupItem>("/statuses"),
+      fetchAllPages<StatusItem>("/statuses"),
     ]).then(([subs, lvls, stats]) => {
       setSubjects(subs);
       setLevels(lvls);

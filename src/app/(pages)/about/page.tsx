@@ -4,11 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import { usePageTitle } from "@/lib/page-context";
-import {
-  STATUS_STABILITY,
-  STATUS_COLORS,
-} from "@/lib/fsrs";
-import type { AnswerStatus } from "@/lib/types";
+import { useProject } from "@/hooks/use-project";
 
 /* ── KaTeX helpers ── */
 
@@ -102,29 +98,12 @@ function V({
   );
 }
 
-/* ── Constants ── */
-
-const STATUS_TEXT_COLORS: Record<AnswerStatus, string> = {
-  Miss: "text-red-400",
-  Rough: "text-orange-400",
-  Fair: "text-yellow-400",
-  Fluent: "text-green-400",
-  Done: "text-blue-400",
-};
-
-const STATUSES: AnswerStatus[] = ["Miss", "Rough", "Fair", "Fluent", "Done"];
-const STATUS_DESCRIPTIONS: Record<AnswerStatus, string> = {
-  Miss: "解けなかった・全く思い出せない",
-  Rough: "正解できたがまだ繰り返しが必要",
-  Fair: "自力で解けたが少し不安が残る",
-  Fluent: "確実に再現できた・自信あり",
-  Done: "完全に定着した・考えなくても解ける",
-};
 
 /* ── Page ── */
 
 export default function AboutPage() {
   usePageTitle("About");
+  const { statuses } = useProject();
 
   // Score params
   const [timeCoeff, setTimeCoeff] = useState(0.5);
@@ -138,19 +117,22 @@ export default function AboutPage() {
   // FSRS params
   const [fVal, setFVal] = useState(19 / 81);
   const [cVal, setCVal] = useState(-0.5);
-  const [stability, setStability] = useState({ ...STATUS_STABILITY });
 
-  const setStab = (s: AnswerStatus, v: number) =>
-    setStability((p) => ({ ...p, [s]: v }));
+  // Editable stability per status (initialised from DB)
+  const [stabilityOverrides, setStabilityOverrides] = useState<Map<string, number>>(new Map());
+  const getStab = (name: string, dbDays: number) => stabilityOverrides.get(name) ?? dbDays;
+  const setStab = (name: string, v: number) =>
+    setStabilityOverrides((p) => new Map(p).set(name, v));
 
-  // Derived multipliers
-  const multipliers: Record<AnswerStatus, string> = {
-    Miss: `\\times ${missPenalty}`,
-    Rough: "\\times 1.0",
-    Fair: `\\times ${(1 + (3 - 2) * growthFactor).toFixed(1)}`,
-    Fluent: `\\times ${(1 + (4 - 2) * growthFactor).toFixed(1)}`,
-    Done: `\\times ${(1 + (5 - 2) * growthFactor).toFixed(1)}`,
-  };
+  // Derived: max stability for P_i computation
+  const maxStab = useMemo(
+    () => Math.max(...statuses.map((s) => getStab(s.name, s.stabilityDays)), 1),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [statuses, stabilityOverrides],
+  );
+
+  // First status (lowest sortOrder) for "incorrect" description
+  const firstStatus = statuses[0];
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
@@ -160,7 +142,9 @@ export default function AboutPage() {
           <h2 className="text-base font-semibold mb-2">ステータス（評価）</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             ステータスは各問題の解答後に自己評価される、問題ごとの状態です。<br />
-            不正解の場合はすべて <span style={{ color: STATUS_COLORS.Miss }}>Miss</span> と評価されます。<br />
+            {firstStatus && (
+              <>不正解の場合はすべて <span style={{ color: firstStatus.color ?? "#888" }}>{firstStatus.name}</span> と評価されます。<br /></>
+            )}
             正解の場合は「あと何日くらいこの結果を再現できそうか」を主観で評価します。
           </p>
           <table className="text-xs mt-2 w-full">
@@ -172,14 +156,14 @@ export default function AboutPage() {
               </tr>
             </thead>
             <tbody className="text-muted-foreground">
-              {STATUSES.map((s) => (
-                <tr key={s} className="border-b border-border/50 last:border-0">
-                  <td className={`pr-4 py-1 ${STATUS_TEXT_COLORS[s]}`}>{s}</td>
-                  <td className="pr-4 py-1">{STATUS_DESCRIPTIONS[s]}</td>
+              {statuses.map((s) => (
+                <tr key={s.name} className="border-b border-border/50 last:border-0">
+                  <td className="pr-4 py-1" style={{ color: s.color ?? "#888" }}>{s.name}</td>
+                  <td className="pr-4 py-1">{s.description ?? ""}</td>
                   <td className="py-1">
                     <V
-                      value={stability[s]}
-                      onChange={(v) => setStab(s, v)}
+                      value={getStab(s.name, s.stabilityDays)}
+                      onChange={(v) => setStab(s.name, v)}
                       suffix="日"
                     />
                   </td>
@@ -211,7 +195,7 @@ export default function AboutPage() {
                 {`P_i = \\left(\\frac{I_i}{I_{\\max}}\\right)^{\\gamma} \\times 100`}
               </TexBlock>
               <p className="text-xs text-muted-foreground -mt-1 mb-1">
-                <Tex>{"I_i"}</Tex>: 各評価の復習間隔（<Tex>{"i"}</Tex> = Miss, Rough, Fair, Fluent, Done）
+                <Tex>{"I_i"}</Tex>: 各評価の復習間隔（<Tex>{"i"}</Tex> = {statuses.map((s) => s.name).join(", ")})
               </p>
               <p className="text-sm text-foreground mt-1">
                 <Tex>{"\\gamma"}</Tex> ={" "}
@@ -233,14 +217,14 @@ export default function AboutPage() {
                   </tr>
                 </thead>
                 <tbody className="text-muted-foreground">
-                  {STATUSES.map((s) => {
-                    const sMax = Math.max(...Object.values(stability));
-                    const pe = sMax > 0 ? Math.pow(stability[s] / sMax, ceExponent) * 100 : 0;
+                  {statuses.map((s) => {
+                    const stab = getStab(s.name, s.stabilityDays);
+                    const pe = maxStab > 0 ? Math.pow(stab / maxStab, ceExponent) * 100 : 0;
                     return (
-                      <tr key={s} className="border-b border-border/50 last:border-0">
-                        <td className={`pr-3 py-1 ${STATUS_TEXT_COLORS[s]}`}>{s}</td>
+                      <tr key={s.name} className="border-b border-border/50 last:border-0">
+                        <td className="pr-3 py-1" style={{ color: s.color ?? "#888" }}>{s.name}</td>
                         <td className="pr-3 py-1 tabular-nums font-medium">{Math.round(pe)}</td>
-                        <td className="py-1 tabular-nums">{stability[s]}</td>
+                        <td className="py-1 tabular-nums">{stab}</td>
                       </tr>
                     );
                   })}
@@ -310,37 +294,38 @@ export default function AboutPage() {
               </tr>
             </thead>
             <tbody className="text-muted-foreground">
-              <tr className="border-b border-border/50">
-                <td className="pr-4 py-1 text-red-400">Miss</td>
-                <td className="pr-4 py-1 tabular-nums">1</td>
-                <td className="py-1">
-                  <V
-                    value={missPenalty}
-                    onChange={setMissPenalty}
-                    fmt={(v) => `\u00d7${v}`}
-                  />
-                  <span className="text-muted-foreground ml-1">（後退）</span>
-                </td>
-              </tr>
-              <tr className="border-b border-border/50">
-                <td className="pr-4 py-1 text-orange-400">Rough</td>
-                <td className="pr-4 py-1 tabular-nums">2</td>
-                <td className="py-1">
-                  <Tex>{"\\times 1.0"}</Tex>
-                  <span className="text-muted-foreground ml-1">（維持）</span>
-                </td>
-              </tr>
-              {(["Fair", "Fluent", "Done"] as const).map((s) => (
-                <tr key={s} className="border-b border-border/50 last:border-0">
-                  <td className={`pr-4 py-1 ${STATUS_TEXT_COLORS[s]}`}>{s}</td>
-                  <td className="pr-4 py-1 tabular-nums">
-                    {{ Fair: 3, Fluent: 4, Done: 5 }[s]}
-                  </td>
-                  <td className="py-1">
-                    <Tex>{multipliers[s]}</Tex>
-                  </td>
-                </tr>
-              ))}
+              {statuses.map((s) => {
+                const q = s.sortOrder + 1;
+                const mult = q < 2
+                  ? `\\times ${missPenalty}`
+                  : q === 2
+                    ? "\\times 1.0"
+                    : `\\times ${(1 + (q - 2) * growthFactor).toFixed(1)}`;
+                const note = q < 2 ? "（後退）" : q === 2 ? "（維持）" : null;
+                return (
+                  <tr key={s.name} className="border-b border-border/50 last:border-0">
+                    <td className="pr-4 py-1" style={{ color: s.color ?? "#888" }}>{s.name}</td>
+                    <td className="pr-4 py-1 tabular-nums">{q}</td>
+                    <td className="py-1">
+                      {q < 2 ? (
+                        <>
+                          <V
+                            value={missPenalty}
+                            onChange={setMissPenalty}
+                            fmt={(v) => `\u00d7${v}`}
+                          />
+                          <span className="text-muted-foreground ml-1">{note}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Tex>{mult}</Tex>
+                          {note && <span className="text-muted-foreground ml-1">{note}</span>}
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>
@@ -354,7 +339,9 @@ export default function AboutPage() {
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             最終解答日から復習間隔 <Tex>{"I_i"}</Tex> 日後が次の復習予定日です。
-            Miss（<Tex>{"I = 0"}</Tex>）は即日復習が必要です。
+            {firstStatus && (
+              <>{firstStatus.name}（<Tex>{"I = 0"}</Tex>）は即日復習が必要です。</>
+            )}
           </p>
           <p className="text-xs text-muted-foreground mt-2">
             Overdue = 今日 - 復習予定日。正の値は期限超過（復習が必要）を意味します。
@@ -394,11 +381,9 @@ export default function AboutPage() {
             （期限超過日数が大きい順）です。復習優先度は以下の通りです。
           </p>
           <ol className="text-xs text-muted-foreground list-decimal list-inside space-y-1 mt-2">
-            <li>
-              Fluent / Fair で期限切れ（<Tex>{"S"}</Tex>日数超過）— 忘却直前、最優先
-            </li>
-            <li>Rough で{stability.Rough}日以上経過 — 忘却リスク高</li>
-            <li>Miss で複数回着手済み — 定着しかけている</li>
+            <li>高評価で期限切れ（<Tex>{"S"}</Tex>日数超過）— 忘却直前、最優先</li>
+            <li>低評価で数日経過 — 忘却リスク高</li>
+            <li>最低評価で複数回着手済み — 定着しかけている</li>
             <li>新規問題 — 時間が余った場合のみ</li>
           </ol>
           <p className="text-sm text-muted-foreground leading-relaxed mt-2">

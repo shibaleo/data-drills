@@ -4,8 +4,9 @@
  * These shapes mirror what the corresponding Hono routes return.
  * Co-locating them here lets pages and shared components import the
  * same types instead of re-declaring them.
+ *
+ * Status names are plain strings — no literal type dependency.
  */
-import type { AnswerStatus } from "./types"
 
 /** Row returned by GET /answers-list */
 export interface AnswerListRow {
@@ -13,7 +14,7 @@ export interface AnswerListRow {
   problemId: string
   date: string
   duration: string | null
-  status: AnswerStatus | null
+  status: string | null
   statusColor: string | null
   code: string
   problemName: string
@@ -34,7 +35,7 @@ export interface ScheduleRow {
   levelId: string | null
   levelName: string
   levelColor: string | null
-  lastStatus: AnswerStatus
+  lastStatus: string
   statusColor: string
   nextReview: string
   daysUntil: number

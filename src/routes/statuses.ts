@@ -7,7 +7,7 @@ import { randomCode } from "@/lib/utils";
 const app = new Hono();
 
 app.get("/", async (c) => {
-  const rows = await db.select().from(answerStatus).orderBy(answerStatus.point);
+  const rows = await db.select().from(answerStatus).orderBy(answerStatus.sortOrder);
   return c.json({ data: rows, next_cursor: null });
 });
 
@@ -19,6 +19,8 @@ app.post("/", async (c) => {
     color: (body.color ?? null) as string | null,
     point: (body.point ?? 0) as number,
     sortOrder: (body.sort_order ?? 0) as number,
+    stabilityDays: (body.stability_days ?? 0) as number,
+    description: (body.description ?? null) as string | null,
     ...(body.id ? { id: body.id as string } : {}),
   };
   const [row] = await db.insert(answerStatus).values(values).returning();
@@ -33,6 +35,8 @@ app.put("/:id", async (c) => {
   if (body.color !== undefined) updates.color = body.color;
   if (body.point !== undefined) updates.point = body.point;
   if (body.sort_order !== undefined) updates.sortOrder = body.sort_order;
+  if (body.stability_days !== undefined) updates.stabilityDays = body.stability_days;
+  if (body.description !== undefined) updates.description = body.description;
   const [row] = await db.update(answerStatus).set(updates).where(eq(answerStatus.id, c.req.param("id"))).returning();
   if (!row) return c.json({ error: "Not found" }, 404);
   return c.json({ data: row });

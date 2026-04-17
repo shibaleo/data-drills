@@ -25,7 +25,6 @@ import { api } from "@/lib/api-client";
 import { useProject } from "@/hooks/use-project";
 import { usePageTitle } from "@/lib/page-context";
 import {
-  STATUS_COLORS,
   computeScore,
   computeNextReview,
   computeDaysOverdue,
@@ -33,6 +32,7 @@ import {
   fitPredictionLine,
   type ScorePoint,
 } from "@/lib/fsrs";
+import type { StatusItem } from "@/hooks/use-project";
 import { SortHeader } from "@/app/(pages)/problems/columns";
 import { toJSTDateString } from "@/lib/date-utils";
 import {
@@ -51,7 +51,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProblemCard, type ProblemWithAnswers } from "@/components/problem-card";
-import { ANSWER_STATUSES, type AnswerStatus } from "@/lib/types";
 
 // /problems-list returns answers with extra duration_sec field
 type ListAnswer = ProblemWithAnswers["answers"][number] & { duration_sec: number | null };
@@ -67,7 +66,8 @@ interface RowData {
   code: string;
   name: string;
   color: string;
-  lastStatus: AnswerStatus;
+  lastStatus: string;
+  statusColor: string;
   score: number;
   nextReview: string;
   daysOverdue: number;
@@ -109,9 +109,8 @@ const columns: ColumnDef<RowData>[] = [
   {
     accessorKey: "lastStatus",
     header: ({ column }) => <SortHeader column={column}>Status</SortHeader>,
-    cell: ({ getValue }) => {
-      const status = getValue<AnswerStatus>();
-      return <StatusTag status={status} opaque className="text-[10px]" />;
+    cell: ({ row }) => {
+      return <StatusTag status={row.original.lastStatus} color={row.original.statusColor} opaque className="text-[10px]" />;
     },
   },
   {
@@ -181,12 +180,15 @@ const columns: ColumnDef<RowData>[] = [
 function ScoreTooltipContent({
   active,
   payload,
+  statusColorMap,
 }: {
   active?: boolean;
-  payload?: { payload: ScorePoint }[];
+  payload?: { payload: ScorePoint & { statusColor?: string } }[];
+  statusColorMap?: Map<string, string>;
 }) {
   if (!active || !payload?.length) return null;
   const pt = payload[0].payload;
+  const color = pt.statusColor ?? statusColorMap?.get(pt.statusName) ?? "#888";
   return (
     <div className="rounded-md border bg-background px-3 py-1.5 text-xs shadow-md">
       <p className="font-medium">{pt.date}</p>
@@ -195,7 +197,7 @@ function ScoreTooltipContent({
       </p>
       <p>
         Status:{" "}
-        <span style={{ color: STATUS_COLORS[pt.status] }}>{pt.status}</span>
+        <span style={{ color }}>{pt.statusName}</span>
       </p>
     </div>
   );
@@ -205,8 +207,13 @@ function ScoreTooltipContent({
 
 export default function ScoreDashboardPage() {
   usePageTitle("スコアダッシュボード");
-  const { currentProject } = useProject();
+  const { currentProject, statuses } = useProject();
   const [rows, setRows] = useState<RowData[]>([]);
+
+  // Build lookup maps from DB statuses
+  const statusByName = useMemo(() => new Map(statuses.map((s) => [s.name, s])), [statuses]);
+  const statusColorMap = useMemo(() => new Map(statuses.map((s) => [s.name, s.color ?? "#888"])), [statuses]);
+  const maxStability = useMemo(() => Math.max(...statuses.map((s) => s.stabilityDays), 1), [statuses]);
   const [problemMap, setProblemMap] = useState<Map<string, ProblemWithAnswers>>(new Map());
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -238,9 +245,11 @@ export default function ScoreDashboardPage() {
         const sorted = [...dated].sort((a, b) => a.date.localeCompare(b.date));
         const latest = sorted[sorted.length - 1];
         const lastStatus = latest.status ?? "Miss";
+        const lastStatusRow = statusByName.get(lastStatus);
+        const stabilityDays = lastStatusRow?.stabilityDays ?? 0;
 
-        const score = computeScore(lastStatus, p.standard_time, latest.duration_sec);
-        const nextReview = computeNextReview(latest.date, lastStatus, p.standard_time, latest.duration_sec);
+        const score = computeScore(stabilityDays, maxStability, p.standard_time, latest.duration_sec);
+        const nextReview = computeNextReview(latest.date, stabilityDays, p.standard_time, latest.duration_sec);
         const daysOverdue = computeDaysOverdue(nextReview, todayStr);
 
         const timeScore =
@@ -250,10 +259,11 @@ export default function ScoreDashboardPage() {
 
         const answersForHistory = sorted.map((a) => ({
           date: a.date,
-          status: (a.status ?? "Miss") as AnswerStatus,
+          statusName: a.status ?? "Miss",
+          stabilityDays: statusByName.get(a.status ?? "Miss")?.stabilityDays ?? 0,
           durationSec: a.duration_sec,
         }));
-        const scoreHistory = computeScoreHistory(answersForHistory, p.standard_time);
+        const scoreHistory = computeScoreHistory(answersForHistory, p.standard_time, maxStability);
 
         builtRows.push({
           problemId: p.id,
@@ -261,6 +271,7 @@ export default function ScoreDashboardPage() {
           name: p.name,
           color: p.color,
           lastStatus,
+          statusColor: lastStatusRow?.color ?? "#888",
           score,
           nextReview,
           daysOverdue,
@@ -280,7 +291,7 @@ export default function ScoreDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentProject, todayStr]);
+  }, [currentProject, todayStr, statusByName, maxStability]);
 
   useEffect(() => {
     fetchData();
@@ -335,21 +346,17 @@ export default function ScoreDashboardPage() {
     const completed = rows.filter((r) => r.score >= 100).length;
     const overdue = rows.filter((r) => r.daysOverdue > 0).length;
 
-    const dist: Record<AnswerStatus, number> = {
-      Miss: 0,
-      Rough: 0,
-      Fair: 0,
-      Fluent: 0,
-      Done: 0,
-    };
-    for (const r of rows) dist[r.lastStatus]++;
+    const dist = new Map<string, number>();
+    for (const s of statuses) dist.set(s.name, 0);
+    for (const r of rows) dist.set(r.lastStatus, (dist.get(r.lastStatus) ?? 0) + 1);
 
+    // Average time score for statuses with sortOrder >= 2 (Fair+)
+    const fairPlusSortOrder = 2;
     const checkPlus = rows.filter(
-      (r) =>
-        (r.lastStatus === "Fair" ||
-          r.lastStatus === "Fluent" ||
-          r.lastStatus === "Done") &&
-        r.timeScore !== null,
+      (r) => {
+        const so = statusByName.get(r.lastStatus)?.sortOrder ?? 0;
+        return so >= fairPlusSortOrder && r.timeScore !== null;
+      },
     );
     const avgTimeScore =
       checkPlus.length > 0
@@ -358,7 +365,7 @@ export default function ScoreDashboardPage() {
         : null;
 
     return { total, completed, overdue, dist, avgTimeScore };
-  }, [rows]);
+  }, [rows, statuses, statusByName]);
 
   const chartConfig: ChartConfig = {
     score: { label: "Score", color: "hsl(var(--chart-1))" },
@@ -413,9 +420,9 @@ export default function ScoreDashboardPage() {
                 <div className="flex items-center gap-2">
                   <PieChart width={48} height={48}>
                     <Pie
-                      data={ANSWER_STATUSES.filter((s) => summary.dist[s] > 0).map((s) => ({
-                        name: s,
-                        value: summary.dist[s],
+                      data={statuses.filter((s) => (summary.dist.get(s.name) ?? 0) > 0).map((s) => ({
+                        name: s.name,
+                        value: summary.dist.get(s.name) ?? 0,
                       }))}
                       dataKey="value"
                       cx="50%"
@@ -425,25 +432,25 @@ export default function ScoreDashboardPage() {
                       strokeWidth={0}
                       isAnimationActive={false}
                     >
-                      {ANSWER_STATUSES.filter((s) => summary.dist[s] > 0).map((s) => (
-                        <Cell key={s} fill={STATUS_COLORS[s]} />
+                      {statuses.filter((s) => (summary.dist.get(s.name) ?? 0) > 0).map((s) => (
+                        <Cell key={s.name} fill={s.color ?? "#888"} />
                       ))}
                     </Pie>
                   </PieChart>
                   <div className="flex flex-col gap-0.5">
-                    {ANSWER_STATUSES.map((s) => (
-                      <div key={s} className="flex items-center gap-1.5">
+                    {statuses.map((s) => (
+                      <div key={s.name} className="flex items-center gap-1.5">
                         <span
                           className="text-[10px] w-10"
-                          style={{ color: STATUS_COLORS[s] }}
+                          style={{ color: s.color ?? "#888" }}
                         >
-                          {s}
+                          {s.name}
                         </span>
                         <span
                           className="text-[10px] tabular-nums font-medium"
-                          style={{ color: STATUS_COLORS[s] }}
+                          style={{ color: s.color ?? "#888" }}
                         >
-                          {summary.dist[s]}
+                          {summary.dist.get(s.name) ?? 0}
                         </span>
                       </div>
                     ))}
@@ -522,7 +529,7 @@ export default function ScoreDashboardPage() {
                         width={40}
                       />
                       <ChartTooltip
-                        content={<ScoreTooltipContent />}
+                        content={<ScoreTooltipContent statusColorMap={statusColorMap} />}
                       />
                       <ReferenceLine
                         y={100}
@@ -536,14 +543,14 @@ export default function ScoreDashboardPage() {
                         }}
                       />
                       <Scatter
-                        data={selectedRow.scoreHistory.map(({ date, score, status }) => ({ date, score, status }))}
+                        data={selectedRow.scoreHistory.map((pt) => ({ date: pt.date, score: pt.score, statusName: pt.statusName, statusColor: statusColorMap.get(pt.statusName) ?? "#888" }))}
                         line={selectedRow.scoreHistory.length >= 2 ? { stroke: "hsl(var(--muted-foreground))", strokeWidth: 1, strokeOpacity: 0.3 } : false}
                         isAnimationActive={false}
                       >
                         {selectedRow.scoreHistory.map((pt, i) => (
                           <Cell
                             key={i}
-                            fill={STATUS_COLORS[pt.status]}
+                            fill={statusColorMap.get(pt.statusName) ?? "#888"}
                             r={5}
                           />
                         ))}

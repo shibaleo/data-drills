@@ -1,5 +1,4 @@
-import type { AnswerStatus } from './types'
-import { computeStability, retention, statusToQuality } from './forgetting-curve'
+import { computeStability, retention } from './forgetting-curve'
 import { toJSTDateString } from './date-utils'
 
 export interface RetentionPoint {
@@ -19,7 +18,7 @@ export interface ProblemRetentionSeries {
 
 interface DatedAnswer {
   date: string
-  status: AnswerStatus | null
+  status: string | null
   point?: number
 }
 
@@ -45,7 +44,7 @@ export function buildRetentionMeta(
   name: string,
   subjectId: string,
   levelId: string,
-  answers: { date: string | null; status: AnswerStatus | null; point?: number }[],
+  answers: { date: string | null; status: string | null; point?: number }[],
   now: Date,
 ): ProblemRetentionMeta | null {
   const dated = answers
@@ -54,7 +53,7 @@ export function buildRetentionMeta(
 
   if (dated.length === 0) return null
 
-  const qualities = dated.map((a) => a.point ?? statusToQuality(a.status))
+  const qualities = dated.map((a) => a.point ?? 1)
   const stabilities: number[] = []
   for (let i = 0; i < qualities.length; i++) {
     stabilities.push(computeStability(qualities.slice(0, i + 1)))

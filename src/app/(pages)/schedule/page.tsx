@@ -26,7 +26,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { AnswerStatus } from "@/lib/types";
 import type { ScheduleRow as ScheduleApiRow } from "@/lib/api-responses";
 import { CheckboxFilter } from "@/components/shared/checkbox-filter";
 
@@ -42,13 +41,6 @@ interface ScheduleRow extends Omit<ScheduleApiRow, "answerCount"> {
 const CELL = 14;
 const GAP = 2;
 const STEP = CELL + GAP;
-const STATUS_ORDER: Record<AnswerStatus, number> = {
-  Miss: 0,
-  Rough: 1,
-  Fair: 2,
-  Fluent: 3,
-  Done: 4,
-};
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + "T12:00:00");
@@ -67,12 +59,14 @@ function ScheduleChart({
   onSelect,
   selectedId,
   colorMode = "problem",
+  statusOrderMap,
 }: {
   items: ScheduleRow[];
   today: string;
   onSelect?: (problemId: string) => void;
   selectedId?: string | null;
   colorMode?: ChartColorMode;
+  statusOrderMap: Map<string, number>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -85,7 +79,7 @@ function ScheduleChart({
       map.set(item.nextReview, list);
     }
     for (const list of map.values()) {
-      list.sort((a, b) => STATUS_ORDER[a.lastStatus] - STATUS_ORDER[b.lastStatus]);
+      list.sort((a, b) => (statusOrderMap.get(a.lastStatus) ?? 0) - (statusOrderMap.get(b.lastStatus) ?? 0));
     }
     return map;
   }, [items]);
@@ -315,9 +309,8 @@ const columns: ColumnDef<ScheduleRow>[] = [
   {
     accessorKey: "lastStatus",
     header: ({ column }) => <SortHeader column={column}>Status</SortHeader>,
-    cell: ({ getValue }) => {
-      const status = getValue<AnswerStatus>();
-      return <StatusTag status={status} opaque className="text-[10px]" />;
+    cell: ({ row }) => {
+      return <StatusTag status={row.original.lastStatus} color={row.original.statusColor} opaque className="text-[10px]" />;
     },
     size: 70,
   },
@@ -402,7 +395,14 @@ const columns: ColumnDef<ScheduleRow>[] = [
 
 export default function SchedulePage() {
   usePageTitle("復習スケジュール");
-  const { currentProject, subjects, levels } = useProject();
+  const { currentProject, subjects, levels, statuses } = useProject();
+
+  // Build status name → sortOrder map from DB statuses
+  const statusOrderMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of statuses) m.set(s.name, s.sortOrder);
+    return m;
+  }, [statuses]);
 
   // Schedule data (fast path via /schedule API)
   const [rows, setRows] = useState<ScheduleRow[]>([]);
@@ -535,10 +535,10 @@ export default function SchedulePage() {
   });
 
   const availableStatuses = useMemo(() => {
-    const set = new Set<AnswerStatus>();
+    const set = new Set<string>();
     for (const r of rows) set.add(r.lastStatus);
-    return Array.from(set).sort((a, b) => STATUS_ORDER[a] - STATUS_ORDER[b]);
-  }, [rows]);
+    return Array.from(set).sort((a, b) => (statusOrderMap.get(a) ?? 0) - (statusOrderMap.get(b) ?? 0));
+  }, [rows, statusOrderMap]);
 
   if (!currentProject) {
     return (
@@ -623,7 +623,7 @@ export default function SchedulePage() {
                 </button>
               </div>
             </div>
-            <ScheduleChart items={chartRows} today={todayStr} onSelect={handleSelect} selectedId={selectedId} colorMode={chartColorMode} />
+            <ScheduleChart items={chartRows} today={todayStr} onSelect={handleSelect} selectedId={selectedId} colorMode={chartColorMode} statusOrderMap={statusOrderMap} />
           </div>
 
           {/* Table */}

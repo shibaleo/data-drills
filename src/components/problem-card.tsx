@@ -130,7 +130,7 @@ export function ProblemCard({
     if (answers.length === 0 || !answers[0].date || !answers[0].status) return null
     const latest = answers[0]
     const durSec = parseDuration(latest.duration)
-    const nextReview = computeNextReview(latest.date!, latest.status!, p.standard_time, durSec)
+    const nextReview = computeNextReview(latest.date!, lookup.statusStability(latest.status!), p.standard_time, durSec)
     const today = todayJST()
     const diff = Math.round(
       (new Date(nextReview).getTime() - new Date(today).getTime()) / 86_400_000,

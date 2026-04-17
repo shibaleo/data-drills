@@ -13,7 +13,7 @@ import { ProblemEditDialog } from "@/components/problem-edit-dialog";
 import { AnswerDialog } from "@/components/answer-dialog";
 import { StatusTag } from "@/components/color-tags";
 import type { ProblemWithAnswers } from "@/components/problem-card";
-import type { Problem, AnswerStatus } from "@/lib/types";
+import type { Problem } from "@/lib/types";
 import type { AnswerListRow } from "@/lib/api-responses";
 import { toJSTDate } from "@/lib/date-utils";
 
@@ -166,7 +166,7 @@ export default function AnswersPage() {
         }}
         onCheck={(problem) => {
           setDetailOpen(false);
-          answerForm.openForProblem(problem as Problem & { answers: { date: string | null; status: AnswerStatus | null }[] });
+          answerForm.openForProblem(problem as Problem & { answers: { date: string | null; status: string | null }[] });
         }}
         onDelete={handleDeleteProblem}
         onPdfLinked={() => fetchData()}

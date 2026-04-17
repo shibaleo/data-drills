@@ -1,4 +1,3 @@
-export type AnswerStatus = 'Miss' | 'Rough' | 'Fair' | 'Fluent' | 'Done'
 export type ReviewType =
   | '質問' | '理解' | '確認' | '認知' | '混同'
   | '不理解' | '不作為' | '桁ミス' | '思考特性' | '問題傾向'
@@ -47,7 +46,7 @@ export interface Answer {
   id: string
   date: string | null
   duration: string | null
-  status: AnswerStatus | null
+  status: string | null
   /** Status point value (for dynamic forgetting-curve computation) */
   point?: number
   problem_id: string
@@ -64,7 +63,6 @@ export interface Review {
   updated_at: string
 }
 
-export const ANSWER_STATUSES: AnswerStatus[] = ['Miss', 'Rough', 'Fair', 'Fluent', 'Done']
 export const REVIEW_TYPES: ReviewType[] = [
   '質問', '理解', '確認', '認知', '混同',
   '不理解', '不作為', '桁ミス', '思考特性', '問題傾向',

@@ -112,6 +112,8 @@ export const answerStatus = pgTable("answer_status", {
   color: text("color"),
   point: integer("point").notNull().default(0),
   sortOrder: integer("sort_order").notNull().default(0),
+  stabilityDays: integer("stability_days").notNull().default(0),
+  description: text("description"),
   ...timestamps(),
 }, (t) => [
   uniqueIndex("answer_status_code_key").on(t.code),

@@ -14,7 +14,7 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { problemColor } from "@/lib/problem-color";
 import { secondsToHmsNullable } from "@/lib/duration";
-import type { AnswerStatus, ReviewType } from "@/lib/types";
+import type { ReviewType } from "@/lib/types";
 
 const app = new Hono();
 
@@ -59,7 +59,7 @@ app.get("/", async (c) => {
     : [];
 
   // Lookups
-  const statusNameMap = new Map(statuses.map((s) => [s.id, s.name as AnswerStatus]));
+  const statusNameMap = new Map(statuses.map((s) => [s.id, s.name]));
   const statusPointMap = new Map(statuses.map((s) => [s.id, s.point]));
   const subjectMap = new Map(subjects.map((s) => [s.id, s]));
   const levelMap = new Map(levels.map((l) => [l.id, l]));
@@ -103,7 +103,7 @@ app.get("/", async (c) => {
     date: string;
     duration: string | null;
     duration_sec: number | null;
-    status: AnswerStatus | null;
+    status: string | null;
     point?: number;
     problem_id: string;
     created_at: string;

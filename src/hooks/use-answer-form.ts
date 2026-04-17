@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { api, fetchAllPages } from '@/lib/api-client'
 import { nextStatus } from '@/lib/answer-utils'
 import { useProject } from '@/hooks/use-project'
-import type { AnswerStatus, ReviewType, Problem, Answer, Review } from '@/lib/types'
+import type { ReviewType, Problem, Answer, Review } from '@/lib/types'
 
 type AnswerWithReviews = Answer & { reviews: Review[] }
 
@@ -101,7 +101,7 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
   const [level, setLevel] = useState('')
   const [code, setCode] = useState('')
   const [duration, setDuration] = useState('')
-  const [status, setStatus] = useState<AnswerStatus>('Miss')
+  const [status, setStatus] = useState<string>('Miss')
   const [reviews, setReviews] = useState<{ _key?: string; type: ReviewType; content: string }[]>([])
 
   const [origSubject, setOrigSubject] = useState('')
@@ -122,7 +122,7 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
     }).catch(() => {})
   }, [])
 
-  function openForProblem(p: Problem & { answers: { date: string | null; status: AnswerStatus | null }[] }) {
+  function openForProblem(p: Problem & { answers: { date: string | null; status: string | null }[] }) {
     setProblemId(p.id)
     setProblem(p)
     setSubject(p.subject_id)
@@ -132,12 +132,12 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
     setOrigLevel(p.level_id)
     setOrigCode(p.code)
     setDuration('')
-    setStatus(nextStatus(p.answers))
+    setStatus(nextStatus(p.answers, statuses))
     setReviews([])
     setOpen(true)
   }
 
-  function openBlank(defaults?: { status?: AnswerStatus }) {
+  function openBlank(defaults?: { status?: string }) {
     setProblemId(null)
     setProblem(null)
     setSubject(subjects[0]?.id ?? '')
@@ -233,7 +233,7 @@ export function useEditAnswerForm(onSaved: (problemId: string) => void) {
   const [subject, setSubject] = useState('')
   const [level, setLevel] = useState('')
   const [code, setCode] = useState('')
-  const [status, setStatus] = useState<AnswerStatus>('Miss')
+  const [status, setStatus] = useState<string>('Miss')
   const [duration, setDuration] = useState('')
   const [reviews, setReviews] = useState<{ id?: string; _key?: string; type: ReviewType; content: string }[]>([])
 
@@ -264,7 +264,7 @@ export function useEditAnswerForm(onSaved: (problemId: string) => void) {
     setOrigSubject(prob.subject_id)
     setOrigLevel(prob.level_id)
     setOrigCode(prob.code)
-    setStatus((answer.status as AnswerStatus) ?? 'Miss')
+    setStatus(answer.status ?? 'Miss')
     setDuration(answer.duration ?? '')
     setReviews(
       answer.reviews.map((r) => ({ id: r.id, _key: crypto.randomUUID(), type: (r.review_type ?? '不理解') as ReviewType, content: r.content })),

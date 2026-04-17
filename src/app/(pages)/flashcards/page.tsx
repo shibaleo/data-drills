@@ -23,7 +23,6 @@ import { StatusTag } from "@/components/color-tags";
 import { RetentionBarRaw } from "@/components/retention-bar";
 import { Markdown } from "@/components/markdown";
 import { randomCode } from "@/lib/utils";
-import type { AnswerStatus } from "@/lib/types";
 import { computeStability, retention } from "@/lib/forgetting-curve";
 import { toJSTDateString, jstDayDiff } from "@/lib/date-utils";
 
@@ -349,7 +348,7 @@ export default function FlashcardsPage() {
                             onClick={() => handleRate(card.id, s.point ?? 0)}
                             className="transition-opacity hover:opacity-80"
                           >
-                            <StatusTag status={s.name as AnswerStatus} color={s.color} opaque />
+                            <StatusTag status={s.name} color={s.color} opaque />
                           </button>
                         ))}
                       </div>
