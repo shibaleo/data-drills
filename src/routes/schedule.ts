@@ -96,6 +96,7 @@ app.get("/", async (c) => {
       nextReview,
       daysUntil,
       answerCount: answerCounts.get(p.id) ?? 0,
+      standardTime: p.standardTime,
       color: problemColor(p.code, p.name ?? "", subj?.color ?? null),
     };
   });

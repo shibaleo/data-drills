@@ -40,5 +40,6 @@ export interface ScheduleRow {
   nextReview: string
   daysUntil: number
   answerCount: number
+  standardTime: number | null
   color: string
 }

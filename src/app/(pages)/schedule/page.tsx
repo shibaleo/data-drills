@@ -34,6 +34,7 @@ import { CheckboxFilter } from "@/components/shared/checkbox-filter";
 /** Display row — adds reviewCount for the "next 4 weeks" forecast cell. */
 interface ScheduleRow extends Omit<ScheduleApiRow, "answerCount"> {
   reviewCount: number;
+  standardTime: number | null;
 }
 
 /* ── Schedule Chart (SVG) ── */
@@ -230,9 +231,10 @@ function ScheduleChart({
                   </g>
                 );
               })}
-              {/* Top axis: relative days */}
-              {(colIdx % 7 === 0 || isToday) && (() => {
+              {/* Top axis: relative days (every 7 days from today, plus today itself) */}
+              {(() => {
                 const diff = todayIdx >= 0 ? colIdx - todayIdx : 0;
+                if (diff % 7 !== 0) return null;
                 const label = diff === 0 ? "今日" : diff > 0 ? `+${diff}` : `▲ ${Math.abs(diff)}`;
                 return (
                   <text
@@ -247,19 +249,23 @@ function ScheduleChart({
                   </text>
                 );
               })()}
-              {/* Bottom axis: absolute dates */}
-              {(colIdx % 7 === 0 || isToday) && (
-                <text
-                  x={x + CELL / 2}
-                  y={chartHeight - 4}
-                  textAnchor="middle"
-                  className="fill-muted-foreground"
-                  fontSize={9}
-                  fontWeight={isToday ? 700 : 400}
-                >
-                  {`${new Date(date + "T12:00:00").getMonth() + 1}/${new Date(date + "T12:00:00").getDate()}`}
-                </text>
-              )}
+              {/* Bottom axis: absolute dates (same cadence) */}
+              {(() => {
+                const diff = todayIdx >= 0 ? colIdx - todayIdx : 0;
+                if (diff % 7 !== 0) return null;
+                return (
+                  <text
+                    x={x + CELL / 2}
+                    y={chartHeight - 4}
+                    textAnchor="middle"
+                    className="fill-muted-foreground"
+                    fontSize={9}
+                    fontWeight={isToday ? 700 : 400}
+                  >
+                    {`${new Date(date + "T12:00:00").getMonth() + 1} / ${new Date(date + "T12:00:00").getDate()}`}
+                  </text>
+                );
+              })()}
             </g>
           );
         })}
@@ -276,12 +282,14 @@ type SummaryFilter = "today" | "week";
 function SummaryCard({
   label,
   count,
+  minutes,
   active,
   onClick,
   variant,
 }: {
   label: string;
   count: number;
+  minutes?: number;
   active: boolean;
   onClick: () => void;
   variant: "default" | "muted";
@@ -299,6 +307,11 @@ function SummaryCard({
     <button type="button" className={`${base} ${variants[variant]}`} onClick={onClick}>
       <span>{label}</span>
       <span className="tabular-nums font-bold">{count}</span>
+      {minutes != null && minutes > 0 && (
+        <span className="tabular-nums text-muted-foreground font-normal">
+          ~{minutes >= 60 ? `${Math.floor(minutes / 60)}h${minutes % 60 > 0 ? `${minutes % 60}m` : ""}` : `${minutes}m`}
+        </span>
+      )}
     </button>
   );
 }
@@ -416,7 +429,7 @@ export default function SchedulePage() {
     { id: "daysUntil", desc: false },
   ]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [chartColorMode, setChartColorMode] = useState<ChartColorMode>("problem");
+  const [chartColorMode, setChartColorMode] = useState<ChartColorMode>("status");
   const tableRef = useRef<HTMLDivElement>(null);
 
   // Filter state
@@ -452,6 +465,7 @@ export default function SchedulePage() {
         nextReview: r.nextReview,
         daysUntil: r.daysUntil,
         reviewCount: r.answerCount,
+        standardTime: r.standardTime,
       }));
       setRows(built);
     } catch {
@@ -499,14 +513,22 @@ export default function SchedulePage() {
     });
   }, [rows, filterSubjects, filterLevels, filterStatuses]);
 
-  const summaryCounts = useMemo(() => ({
-    today: baseFilteredRows.filter((r) => r.daysUntil === 0).length,
-    week: baseFilteredRows.filter((r) => r.daysUntil > 0 && r.daysUntil <= 7).length,
-  }), [baseFilteredRows]);
+  const summaryCounts = useMemo(() => {
+    const todayRows = baseFilteredRows.filter((r) => r.daysUntil <= 0);
+    const weekRows = baseFilteredRows.filter((r) => r.daysUntil > 0 && r.daysUntil <= 7);
+    const sumTime = (rs: ScheduleRow[]) =>
+      rs.reduce((s, r) => s + (r.standardTime ?? 0), 0);
+    return {
+      today: todayRows.length,
+      todayMin: Math.round(sumTime(todayRows) / 60),
+      week: weekRows.length,
+      weekMin: Math.round(sumTime(weekRows) / 60),
+    };
+  }, [baseFilteredRows]);
 
   const displayRows = useMemo(() => {
     if (!summaryFilter) return baseFilteredRows;
-    if (summaryFilter === "today") return baseFilteredRows.filter((r) => r.daysUntil === 0);
+    if (summaryFilter === "today") return baseFilteredRows.filter((r) => r.daysUntil <= 0);
     return baseFilteredRows.filter((r) => r.daysUntil > 0 && r.daysUntil <= 7);
   }, [baseFilteredRows, summaryFilter]);
 
@@ -563,6 +585,7 @@ export default function SchedulePage() {
             <SummaryCard
               label="今日"
               count={summaryCounts.today}
+              minutes={summaryCounts.todayMin}
               active={summaryFilter === "today"}
               onClick={() => setSummaryFilter((p) => p === "today" ? null : "today")}
               variant="default"
@@ -570,6 +593,7 @@ export default function SchedulePage() {
             <SummaryCard
               label="7日以内"
               count={summaryCounts.week}
+              minutes={summaryCounts.weekMin}
               active={summaryFilter === "week"}
               onClick={() => setSummaryFilter((p) => p === "week" ? null : "week")}
               variant="muted"
