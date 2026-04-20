@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SITE_NAME } from "@/lib/site";
@@ -42,7 +42,7 @@ function OverdueBadge() {
   const { currentProject } = useProject();
   const [count, setCount] = useState(0);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     if (!currentProject) return;
     api
       .get<{ data: ScheduleRow[] }>(
@@ -53,6 +53,13 @@ function OverdueBadge() {
       })
       .catch(() => {});
   }, [currentProject]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    window.addEventListener("schedule-changed", refresh);
+    return () => window.removeEventListener("schedule-changed", refresh);
+  }, [refresh]);
 
   if (count <= 0) return null;
   return (

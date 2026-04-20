@@ -40,9 +40,14 @@ export function useProblemDialogs({
 
   const now = new Date();
 
+  const notifyAndRefresh = useCallback(() => {
+    onDataChanged();
+    window.dispatchEvent(new Event("schedule-changed"));
+  }, [onDataChanged]);
+
   // Answer forms
-  const answerForm = useAnswerForm(() => { onDataChanged(); });
-  const editForm = useEditAnswerForm(() => { onDataChanged(); });
+  const answerForm = useAnswerForm(() => { notifyAndRefresh(); });
+  const editForm = useEditAnswerForm(() => { notifyAndRefresh(); });
 
   const openDetail = useCallback((problemId: string) => {
     setDetailProblemId(problemId);
@@ -65,11 +70,11 @@ export function useProblemDialogs({
       await api.delete(`/problems/${id}`);
       toast.success("削除しました");
       setDetailOpen(false);
-      onDataChanged();
+      notifyAndRefresh();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.body.error : "削除に失敗しました");
     }
-  }, [onDataChanged]);
+  }, [notifyAndRefresh]);
 
   const renderDialogs = useCallback((): ReactNode => {
     if (!currentProject) return null;
@@ -90,7 +95,7 @@ export function useProblemDialogs({
             answerForm.openForProblem(problem as Problem & { answers: { date: string | null; status: string | null }[] });
           }}
           onDelete={handleDeleteProblem}
-          onPdfLinked={() => onDataChanged()}
+          onPdfLinked={() => notifyAndRefresh()}
         />
 
         <ProblemEditDialog
@@ -108,7 +113,7 @@ export function useProblemDialogs({
           projectId={currentProject.id}
           subjects={subjects}
           levels={levels}
-          onSaved={() => { setEditDialogOpen(false); onDataChanged(); }}
+          onSaved={() => { setEditDialogOpen(false); notifyAndRefresh(); }}
           onDelete={editProblem ? () => handleDeleteProblem(editProblem.id) : undefined}
         />
 
@@ -168,7 +173,7 @@ export function useProblemDialogs({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject, detailOpen, detailProblem, editDialogOpen, editProblem,
       answerForm, editForm, subjects, levels, handleEditProblem, handleDeleteProblem,
-      onDataChanged, openCreate]);
+      notifyAndRefresh, openCreate]);
 
   return { openDetail, openCreate, renderDialogs };
 }
