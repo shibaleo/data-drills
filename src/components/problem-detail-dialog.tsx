@@ -34,7 +34,7 @@ export function ProblemDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideClose className="max-w-4xl w-[90vw] max-h-[85vh] overflow-y-auto p-4">
+      <DialogContent hideClose className="max-w-4xl w-[90vw] max-h-[85vh] overflow-y-auto px-6 py-4">
         <DialogHeader className="flex flex-row items-center -mb-4">
           <DialogTitle className="sr-only">{problem.code} {problem.name}</DialogTitle>
           <DialogDescription className="sr-only">Problem detail</DialogDescription>
