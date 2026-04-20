@@ -122,7 +122,7 @@ export function ProblemCard({
 }: ProblemCardProps) {
   const lookup = useLookup()
   const answers = [...p.answers].sort(
-    (a, b) => (b.date ?? '').localeCompare(a.date ?? ''),
+    (a, b) => (b.date ?? '').localeCompare(a.date ?? '') || (b.created_at ?? '').localeCompare(a.created_at ?? ''),
   )
   const info = computeForgettingInfo(p.answers, now)
   const [highlightDate, setHighlightDate] = useState<string | null>(null)

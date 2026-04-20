@@ -5,7 +5,7 @@ import type { StatusItem } from '@/hooks/use-project'
  * Uses the sortOrder-sorted statuses array from DB — no hardcoded names.
  */
 export function nextStatus(
-  answers: { date: string | null; status: string | null }[],
+  answers: { date: string | null; status: string | null; created_at?: string }[],
   statuses: StatusItem[],
 ): string {
   const sorted = statuses.slice().sort((a, b) => a.sortOrder - b.sortOrder)
@@ -13,7 +13,7 @@ export function nextStatus(
 
   const latest = [...answers]
     .filter((a) => a.date)
-    .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+    .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || (b.created_at ?? '').localeCompare(a.created_at ?? ''))
   const last = latest[0]?.status
   if (!last) return sorted[0].name
 

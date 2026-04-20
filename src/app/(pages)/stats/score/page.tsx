@@ -242,7 +242,7 @@ export default function ScoreDashboardPage() {
         if (dated.length === 0) continue;
 
         // Sort chronologically
-        const sorted = [...dated].sort((a, b) => a.date.localeCompare(b.date));
+        const sorted = [...dated].sort((a, b) => a.date.localeCompare(b.date) || (a.created_at ?? '').localeCompare(b.created_at ?? ''));
         const latest = sorted[sorted.length - 1];
         const lastStatus = latest.status ?? "Miss";
         const lastStatusRow = statusByName.get(lastStatus);

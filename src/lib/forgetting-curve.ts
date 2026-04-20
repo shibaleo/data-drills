@@ -80,13 +80,13 @@ export function parseDurationSec(d: string | null): number | null {
  * Falls back to `point` if provided, then sortOrder.
  */
 export function computeForgettingInfo(
-  answers: { date: string | null; sortOrder?: number; point?: number; duration?: string | null }[],
+  answers: { date: string | null; sortOrder?: number; point?: number; duration?: string | null; created_at?: string }[],
   now: Date = new Date(),
 ): ForgettingInfo | null {
   // Sort chronologically
   const dated = answers
     .filter((a): a is typeof a & { date: string } => a.date !== null)
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))
 
   if (dated.length === 0) return null
 

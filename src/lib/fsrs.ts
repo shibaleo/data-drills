@@ -122,15 +122,16 @@ export function computeScoreHistory(
     statusName: string | null
     stabilityDays: number
     durationSec: number | null
+    created_at?: string
   }[],
   standardTimeSec: number | null,
   maxStability: number,
 ): ScorePoint[] {
   const dated = answers
-    .filter((a): a is { date: string; statusName: string; stabilityDays: number; durationSec: number | null } =>
+    .filter((a): a is { date: string; statusName: string; stabilityDays: number; durationSec: number | null; created_at?: string } =>
       a.date !== null && a.statusName !== null,
     )
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))
 
   if (dated.length === 0) return []
 

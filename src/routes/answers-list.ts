@@ -53,12 +53,13 @@ app.get("/", async (c) => {
       subjectName: subj?.name ?? "",
       levelId: p?.levelId ?? null,
       levelName: lvl?.name ?? "",
+      created_at: a.createdAt.toISOString(),
     };
   });
 
-  // Sort by date DESC (null dates last)
+  // Sort by date DESC, then created_at DESC (null dates last)
   rows.sort((a, b) => {
-    if (a.date === b.date) return 0;
+    if (a.date === b.date) return b.created_at.localeCompare(a.created_at);
     return a.date < b.date ? 1 : -1;
   });
 

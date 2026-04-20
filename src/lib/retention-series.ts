@@ -20,6 +20,7 @@ interface DatedAnswer {
   date: string
   status: string | null
   point?: number
+  created_at?: string
 }
 
 /**
@@ -44,12 +45,12 @@ export function buildRetentionMeta(
   name: string,
   subjectId: string,
   levelId: string,
-  answers: { date: string | null; status: string | null; point?: number }[],
+  answers: { date: string | null; status: string | null; point?: number; created_at?: string }[],
   now: Date,
 ): ProblemRetentionMeta | null {
   const dated = answers
     .filter((a): a is DatedAnswer => a.date !== null)
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))
 
   if (dated.length === 0) return null
 
