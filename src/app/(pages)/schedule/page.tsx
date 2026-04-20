@@ -58,6 +58,7 @@ function ScheduleChart({
   items,
   today,
   onSelect,
+  onOpen,
   selectedId,
   colorMode = "problem",
   statusOrderMap,
@@ -65,6 +66,7 @@ function ScheduleChart({
   items: ScheduleRow[];
   today: string;
   onSelect?: (problemId: string) => void;
+  onOpen?: (problemId: string) => void;
   selectedId?: string | null;
   colorMode?: ChartColorMode;
   statusOrderMap: Map<string, number>;
@@ -222,7 +224,8 @@ function ScheduleChart({
                       fill={blockColor}
                       opacity={isSelected ? 1 : 0.85}
                       className="cursor-pointer"
-                      onClick={() => onSelect?.(item.problemId)}
+                      onClick={() => isSelected ? onOpen?.(item.problemId) : onSelect?.(item.problemId)}
+                      onDoubleClick={() => onOpen?.(item.problemId)}
                     >
                       <title>
                         {item.code} {item.name}
@@ -647,7 +650,7 @@ export default function SchedulePage() {
                 </button>
               </div>
             </div>
-            <ScheduleChart items={chartRows} today={todayStr} onSelect={handleSelect} selectedId={selectedId} colorMode={chartColorMode} statusOrderMap={statusOrderMap} />
+            <ScheduleChart items={chartRows} today={todayStr} onSelect={handleSelect} onOpen={openDetail} selectedId={selectedId} colorMode={chartColorMode} statusOrderMap={statusOrderMap} />
           </div>
 
           {/* Table */}
@@ -684,6 +687,7 @@ export default function SchedulePage() {
                     data-problem-id={pid}
                     className={`cursor-pointer ${pid === selectedId ? "bg-accent" : ""}`}
                     onClick={() => pid === selectedId ? openDetail(pid) : handleSelect(pid)}
+                    onDoubleClick={() => openDetail(pid)}
                   >
                     <TableCell className="w-4 px-2">
                       <div
