@@ -7,6 +7,7 @@
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import * as fs from "fs";
+import * as path from "path";
 
 // ---------------------------------------------------------------------------
 // 1. Filename parsing
@@ -124,7 +125,7 @@ export type PageType = "cover" | "problem" | "answer";
 async function getPdfjsLib() {
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    const path = await import("path");
+
     pdfjsLib.GlobalWorkerOptions.workerSrc = path.join(
       process.cwd(),
       "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
@@ -229,7 +230,8 @@ let _fontBytes: Buffer | null = null;
 
 function loadFontBytes(): Buffer {
   if (!_fontBytes) {
-    _fontBytes = fs.readFileSync("C:/Windows/Fonts/yumin.ttf");
+    const fontPath = path.join(process.cwd(), "assets/fonts/yumin.ttf");
+    _fontBytes = fs.readFileSync(fontPath);
   }
   return _fontBytes;
 }
