@@ -399,17 +399,7 @@ const columns: ColumnDef<ScheduleRow>[] = [
         {getValue<string>()}
       </span>
     ),
-    size: 270,
-  },
-  {
-    accessorKey: "nextReview",
-    header: ({ column }) => <SortHeader column={column}>Next</SortHeader>,
-    cell: ({ getValue }) => (
-      <span className="text-xs text-muted-foreground tabular-nums">
-        {getValue<string>()}
-      </span>
-    ),
-    size: 100,
+    size: 240,
   },
   {
     accessorKey: "daysUntil",
@@ -431,6 +421,16 @@ const columns: ColumnDef<ScheduleRow>[] = [
         </span>
       );
     },
+  },
+  {
+    accessorKey: "nextReview",
+    header: ({ column }) => <SortHeader column={column}>Next</SortHeader>,
+    cell: ({ getValue }) => (
+      <span className="text-xs text-muted-foreground tabular-nums">
+        {getValue<string>()}
+      </span>
+    ),
+    size: 100,
   },
   {
     accessorKey: "reviewCount",
