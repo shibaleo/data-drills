@@ -22,9 +22,6 @@ import {
 export function FilterPopover() {
   const {
     projects, currentProject, setCurrentProject,
-    subjects, levels,
-    filterSubjectId, setFilterSubjectId,
-    filterLevelId, setFilterLevelId,
   } = useProject();
   const isActive = !!currentProject;
   const [open, setOpen] = useState(false);
@@ -44,7 +41,7 @@ export function FilterPopover() {
         <DialogContent className="max-w-xs">
           <DialogHeader>
             <DialogTitle>Filter</DialogTitle>
-            <DialogDescription className="sr-only">Filter by project, subject, level</DialogDescription>
+            <DialogDescription className="sr-only">Select project</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
@@ -65,41 +62,6 @@ export function FilterPopover() {
               </Select>
             </div>
 
-            {subjects.length > 0 && (
-              <div className="space-y-1">
-                <Label className="text-xs">Subject</Label>
-                <Select
-                  value={filterSubjectId ?? "__all__"}
-                  onValueChange={(v) => setFilterSubjectId(v === "__all__" ? null : v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All</SelectItem>
-                    {subjects.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {levels.length > 0 && (
-              <div className="space-y-1">
-                <Label className="text-xs">Level</Label>
-                <Select
-                  value={filterLevelId ?? "__all__"}
-                  onValueChange={(v) => setFilterLevelId(v === "__all__" ? null : v)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All</SelectItem>
-                    {levels.map((l) => (
-                      <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
           </div>
         </DialogContent>
       </Dialog>

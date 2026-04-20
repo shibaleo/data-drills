@@ -17,8 +17,10 @@ async function main() {
   for (const s of subjects) console.log(`  ${s.id.slice(0, 8)} | ${s.code} | ${s.name}`);
 
   // Get 簿記 and 財表 problems specifically
-  const bkId = subjects.find((s: { name: string }) => s.name === "簿記")?.id;
-  const zsId = subjects.find((s: { name: string }) => s.name === "財表")?.id;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bkId = subjects.find((s: any) => s.name === "簿記")?.id;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const zsId = subjects.find((s: any) => s.name === "財表")?.id;
   console.log(`\n簿記 subject_id: ${bkId}`);
   console.log(`財表 subject_id: ${zsId}`);
 

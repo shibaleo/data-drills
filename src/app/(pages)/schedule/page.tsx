@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Filter, Loader2 } from "lucide-react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -20,6 +20,12 @@ import { SortHeader } from "@/app/(pages)/problems/columns";
 import { toJSTDateString } from "@/lib/date-utils";
 import { StatusTag } from "@/components/color-tags";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -29,7 +35,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ScheduleRow as ScheduleApiRow } from "@/lib/api-responses";
-import { CheckboxFilter } from "@/components/shared/checkbox-filter";
 
 /* ── Row types ── */
 
@@ -284,17 +289,52 @@ function ScheduleChart({
 
 type SummaryFilter = "today" | "week";
 
+function FilterSection({
+  label,
+  items,
+  selected,
+  onChange,
+}: {
+  label: string;
+  items: { value: string; label: string }[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const toggle = (value: string, checked: boolean | "indeterminate") => {
+    const next = new Set(selected);
+    if (checked === true) next.add(value);
+    else next.delete(value);
+    onChange(next);
+  };
+  return (
+    <div>
+      <div className="text-[10px] font-medium text-muted-foreground mb-1">{label}</div>
+      {items.map((item) => (
+        <label
+          key={item.value}
+          className="flex items-center gap-2 px-1 py-1 text-xs rounded-sm hover:bg-accent cursor-pointer"
+        >
+          <Checkbox
+            className="size-3.5"
+            checked={selected.has(item.value)}
+            onCheckedChange={(checked) => toggle(item.value, checked)}
+          />
+          {item.label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function SummaryCard({
   label,
   count,
-  minutes,
   active,
   onClick,
   variant,
 }: {
   label: string;
   count: number;
-  minutes?: number;
   active: boolean;
   onClick: () => void;
   variant: "default" | "muted";
@@ -312,11 +352,6 @@ function SummaryCard({
     <button type="button" className={`${base} ${variants[variant]}`} onClick={onClick}>
       <span>{label}</span>
       <span className="tabular-nums font-bold">{count}</span>
-      {minutes != null && minutes > 0 && (
-        <span className="tabular-nums text-muted-foreground font-normal">
-          ~{minutes >= 60 ? `${Math.floor(minutes / 60)}h${minutes % 60 > 0 ? `${minutes % 60}m` : ""}` : `${minutes}m`}
-        </span>
-      )}
     </button>
   );
 }
@@ -524,13 +559,9 @@ export default function SchedulePage() {
   const summaryCounts = useMemo(() => {
     const todayRows = baseFilteredRows.filter((r) => r.daysUntil <= 0);
     const weekRows = baseFilteredRows.filter((r) => r.daysUntil > 0 && r.daysUntil <= 7);
-    const sumTime = (rs: ScheduleRow[]) =>
-      rs.reduce((s, r) => s + (r.standardTime ?? 0), 0);
     return {
       today: todayRows.length,
-      todayMin: Math.round(sumTime(todayRows) / 60),
       week: weekRows.length,
-      weekMin: Math.round(sumTime(weekRows) / 60),
     };
   }, [baseFilteredRows]);
 
@@ -554,6 +585,22 @@ export default function SchedulePage() {
       return next;
     });
   }, []);
+
+  const activeFilterCount = filterSubjects.size + filterLevels.size + filterStatuses.size;
+
+  const selectAllVisible = useCallback(() => {
+    const ids = new Set(displayRows.map((r) => r.problemId));
+    setExportSelected(ids);
+  }, [displayRows]);
+
+  const selectedMinutes = useMemo(() => {
+    if (exportSelected.size === 0) return 0;
+    return Math.round(
+      displayRows
+        .filter((r) => exportSelected.has(r.problemId))
+        .reduce((s, r) => s + (r.standardTime ?? 0), 0) / 60,
+    );
+  }, [exportSelected, displayRows]);
 
   const handleExport = useCallback(async () => {
     if (exportSelected.size === 0) return;
@@ -627,54 +674,80 @@ export default function SchedulePage() {
       ) : (
         <>
           {/* Summary cards + Filters */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <SummaryCard
-              label="今日"
-              count={summaryCounts.today}
-              minutes={summaryCounts.todayMin}
-              active={summaryFilter === "today"}
-              onClick={() => setSummaryFilter((p) => p === "today" ? null : "today")}
-              variant="default"
-            />
-            <SummaryCard
-              label="7日以内"
-              count={summaryCounts.week}
-              minutes={summaryCounts.weekMin}
-              active={summaryFilter === "week"}
-              onClick={() => setSummaryFilter((p) => p === "week" ? null : "week")}
-              variant="muted"
-            />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <SummaryCard
+                label="今日"
+                count={summaryCounts.today}
 
-            <div className="h-4 w-px bg-border mx-1" />
+                active={summaryFilter === "today"}
+                onClick={() => setSummaryFilter((p) => p === "today" ? null : "today")}
+                variant="default"
+              />
+              <SummaryCard
+                label="7日以内"
+                count={summaryCounts.week}
 
-            {subjects.length > 0 && (
-              <CheckboxFilter
-                items={subjects.map((s) => ({ value: s.id, label: s.name }))}
-                selected={filterSubjects}
-                onChange={setFilterSubjects}
-                allLabel="All Subjects"
+                active={summaryFilter === "week"}
+                onClick={() => setSummaryFilter((p) => p === "week" ? null : "week")}
+                variant="muted"
               />
-            )}
-            {levels.length > 0 && (
-              <CheckboxFilter
-                items={levels.map((l) => ({ value: l.id, label: l.name }))}
-                selected={filterLevels}
-                onChange={setFilterLevels}
-                allLabel="All Levels"
-              />
-            )}
-            {availableStatuses.length > 1 && (
-              <CheckboxFilter
-                items={availableStatuses.map((s) => ({ value: s, label: s }))}
-                selected={filterStatuses}
-                onChange={setFilterStatuses}
-                allLabel="All Statuses"
-              />
-            )}
 
-            {exportSelected.size > 0 && (
-              <>
+              <div className="h-4 w-px bg-border mx-1" />
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 text-xs relative">
+                    <Filter className="size-3 mr-1" />
+                    Filter
+                    {activeFilterCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 size-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-3 space-y-3" align="start">
+                  {subjects.length > 0 && (
+                    <FilterSection
+                      label="Subject"
+                      items={subjects.map((s) => ({ value: s.id, label: s.name }))}
+                      selected={filterSubjects}
+                      onChange={setFilterSubjects}
+                    />
+                  )}
+                  {levels.length > 0 && (
+                    <FilterSection
+                      label="Level"
+                      items={levels.map((l) => ({ value: l.id, label: l.name }))}
+                      selected={filterLevels}
+                      onChange={setFilterLevels}
+                    />
+                  )}
+                  {availableStatuses.length > 1 && (
+                    <FilterSection
+                      label="Status"
+                      items={availableStatuses.map((s) => ({ value: s, label: s }))}
+                      selected={filterStatuses}
+                      onChange={setFilterStatuses}
+                    />
+                  )}
+                  {activeFilterCount > 0 && (
+                    <button
+                      type="button"
+                      className="text-[10px] text-muted-foreground hover:text-foreground w-full text-center pt-1"
+                      onClick={() => { setFilterSubjects(new Set()); setFilterLevels(new Set()); setFilterStatuses(new Set()); }}
+                    >
+                      フィルター解除
+                    </button>
+                  )}
+                </PopoverContent>
+              </Popover>
+
+              {exportSelected.size > 0 && (
                 <div className="h-4 w-px bg-border mx-1" />
+              )}
+              {exportSelected.size > 0 && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -689,14 +762,17 @@ export default function SchedulePage() {
                   )}
                   {exporting ? "エクスポート中..." : `PDF (${exportSelected.size})`}
                 </Button>
-                <button
-                  type="button"
-                  className="text-[10px] text-muted-foreground hover:text-foreground"
-                  onClick={() => setExportSelected(new Set())}
-                >
-                  解除
-                </button>
-              </>
+              )}
+            </div>
+
+            {/* Selected time card (right side) */}
+            {exportSelected.size > 0 && selectedMinutes > 0 && (
+              <div className="shrink-0 rounded-md border px-3 py-1 text-center">
+                <div className="text-lg font-semibold tabular-nums">
+                  {selectedMinutes >= 60 && <>{Math.floor(selectedMinutes / 60)}<span className="text-xs font-normal text-muted-foreground ml-0.5 mr-1">H</span></>}
+                  {selectedMinutes % 60 > 0 && <>{selectedMinutes % 60}<span className="text-xs font-normal text-muted-foreground ml-0.5">min</span></>}
+                </div>
+              </div>
             )}
           </div>
 
@@ -733,7 +809,20 @@ export default function SchedulePage() {
               <TableHeader>
                 {table.getHeaderGroups().map((hg) => (
                   <TableRow key={hg.id}>
-                    <TableHead className="sticky top-0 z-10 bg-background w-10 px-3" />
+                    <TableHead className="sticky top-0 z-10 bg-background w-10 px-3">
+                      <div className="flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          className="size-3.5 accent-primary cursor-pointer"
+                          checked={exportSelected.size > 0 && exportSelected.size === displayRows.length}
+                          ref={(el) => { if (el) el.indeterminate = exportSelected.size > 0 && exportSelected.size < displayRows.length; }}
+                          onChange={() => {
+                            if (exportSelected.size > 0) setExportSelected(new Set());
+                            else selectAllVisible();
+                          }}
+                        />
+                      </div>
+                    </TableHead>
                     {hg.headers.map((header) => (
                       <TableHead
                         key={header.id}
