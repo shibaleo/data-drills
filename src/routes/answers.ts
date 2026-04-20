@@ -8,8 +8,8 @@ const app = new Hono();
 app.get("/", async (c) => {
   const problemId = c.req.query("problem_id");
   const rows = problemId
-    ? await db.select().from(answer).where(eq(answer.problemId, problemId)).orderBy(answer.date)
-    : await db.select().from(answer).orderBy(answer.date);
+    ? await db.select().from(answer).where(eq(answer.problemId, problemId)).orderBy(answer.date, answer.createdAt)
+    : await db.select().from(answer).orderBy(answer.date, answer.createdAt);
   return c.json({ data: rows, next_cursor: null });
 });
 

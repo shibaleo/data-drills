@@ -41,7 +41,7 @@ app.get("/", async (c) => {
   const [answers, statuses, subjects, levels, tags, files] = await Promise.all([
     db.select().from(answer)
       .where(inArray(answer.problemId, problemIds))
-      .orderBy(answer.date),
+      .orderBy(answer.date, answer.createdAt),
     db.select().from(answerStatus),
     db.select().from(subject).where(eq(subject.projectId, projectId)),
     db.select().from(level).where(eq(level.projectId, projectId)),

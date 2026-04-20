@@ -30,7 +30,7 @@ app.get("/", async (c) => {
   const [answers, statuses, subjects, levels] = await Promise.all([
     db.select().from(answer)
       .where(inArray(answer.problemId, problemIds))
-      .orderBy(answer.date),
+      .orderBy(answer.date, answer.createdAt),
     db.select().from(answerStatus).orderBy(answerStatus.sortOrder),
     db.select().from(subject).where(eq(subject.projectId, projectId)),
     db.select().from(level).where(eq(level.projectId, projectId)),
@@ -48,7 +48,7 @@ app.get("/", async (c) => {
   for (const a of answers) {
     answerCounts.set(a.problemId, (answerCounts.get(a.problemId) ?? 0) + 1);
     const cur = latestAnswer.get(a.problemId);
-    if (!cur || a.date > cur.date) {
+    if (!cur || a.date >= cur.date) {
       latestAnswer.set(a.problemId, {
         date: a.date,
         duration: a.duration,
