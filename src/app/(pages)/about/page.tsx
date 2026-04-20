@@ -137,6 +137,58 @@ export default function AboutPage() {
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <article className="prose prose-sm prose-invert max-w-none space-y-6">
+        {/* ── サイト概要 ── */}
+        <section>
+          <h2 className="text-base font-semibold mb-2">Data Drills とは</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            間隔反復（Spaced Repetition）に基づく問題演習管理ツール。
+            解答ごとの自己評価から復習スケジュールを自動算出し、最小限の復習で記憶を定着させることを目的とする。
+          </p>
+        </section>
+
+        <hr className="border-border" />
+
+        {/* ── 機能一覧 ── */}
+        <section>
+          <h2 className="text-base font-semibold mb-2">機能一覧</h2>
+          <ul className="text-xs text-muted-foreground space-y-2 mt-2">
+            <li>
+              <span className="text-foreground font-medium">Schedule</span> —
+              今日・7日以内の復習対象を一覧表示。Subject / Level / Statusでフィルタし、
+              ヘッダーチェックボックスで一括選択。選択した問題の目安時間をリアルタイム表示。
+            </li>
+            <li>
+              <span className="text-foreground font-medium">Problems</span> —
+              全問題の一覧。科目・レベル・標準時間をインライン編集可能。解答の登録・編集もここから行う。
+            </li>
+            <li>
+              <span className="text-foreground font-medium">Stats</span> —
+              保持率トレンドチャートと問題別の詳細ビュー。FSRS準拠の記憶保持率を推定・可視化。
+            </li>
+            <li>
+              <span className="text-foreground font-medium">Notes</span> —
+              Markdown対応のノート機能。ピン留め・ドラッグ&ドロップ並び替え・リスト/グリッド切替に対応。
+              問題に関するメモや学習ポイントを自由に記録できる。
+            </li>
+            <li>
+              <span className="text-foreground font-medium">Flashcards</span> —
+              問題ごとにフラッシュカードを作成。Markdownで表裏を記述し、保持率バー付きで復習状況を確認しながら暗記できる。
+            </li>
+            <li>
+              <span className="text-foreground font-medium">PDF同期・エクスポート</span> —
+              Google DriveのPDFファイル名をパースし、問題コード・科目・レベルを自動認識（トレーニング・テーマ別演習・実力テストに対応）。
+              未登録の問題はスキャン結果からワンクリックで一括登録できる。
+              登録済みの問題はPDFページを抽出し、ラベル付きで一括エクスポート。
+            </li>
+            <li>
+              <span className="text-foreground font-medium">解答履歴スパークライン</span> —
+              各問題の解答履歴を日付間隔を反映したドットで表示。ステータスの色で学習傾向をひと目で把握。
+            </li>
+          </ul>
+        </section>
+
+        <hr className="border-border" />
+
         {/* ── 評価の定義 ── */}
         <section>
           <h2 className="text-base font-semibold mb-2">ステータス（評価）</h2>
@@ -389,6 +441,36 @@ export default function AboutPage() {
           <p className="text-sm text-muted-foreground leading-relaxed mt-2">
             1日の配分目安: 復習75%、新規25%。新規投入を抑制し「広く浅く」を防ぎます。
           </p>
+        </section>
+        <hr className="border-border" />
+
+        {/* ── 背景理論 ── */}
+        <section>
+          <h2 className="text-base font-semibold mb-2">背景となる理論</h2>
+          <ul className="text-xs text-muted-foreground space-y-2 mt-2">
+            <li>
+              <span className="text-foreground font-medium">忘却曲線（Ebbinghaus, 1885）</span> —
+              記憶は時間とともに指数的に減衰する。復習しなければ1日で約70%を忘れるが、
+              適切なタイミングで復習すると忘却速度が緩やかになり、少ない回数で長期記憶に移行できる。
+            </li>
+            <li>
+              <span className="text-foreground font-medium">間隔反復（Spaced Repetition）</span> —
+              復習間隔を段階的に広げることで、最小の復習回数で記憶を維持する学習法。
+              本サイトではステータスごとに固定の復習間隔 <Tex>{"I_i"}</Tex> を設定し、次回復習日を算出する。
+            </li>
+            <li>
+              <span className="text-foreground font-medium">FSRS（Free Spaced Repetition Scheduler）</span> —
+              Ankiで採用されているアルゴリズム。べき乗関数で保持率を推定し、
+              復習回数・成功/失敗の履歴から安定性 <Tex>{"S"}</Tex> を更新する。
+              本サイトのStats保持率推定はFSRS準拠のモデルを使用。
+            </li>
+            <li>
+              <span className="text-foreground font-medium">Stevens&apos; Power Law</span> —
+              刺激の物理量と主観的な知覚強度がべき乗関係にあるという心理物理学の法則。
+              復習間隔（日数）から評価点 <Tex>{"P_i"}</Tex> への変換に指数 <Tex>{"\\gamma"}</Tex> を適用し、
+              直感的なスコアを導出するために利用。
+            </li>
+          </ul>
         </section>
       </article>
     </div>
