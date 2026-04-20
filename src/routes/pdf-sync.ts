@@ -14,6 +14,24 @@ import {
 
 const app = new Hono();
 
+/** Run async tasks with concurrency limit */
+async function pMap<T, R>(
+  items: T[],
+  fn: (item: T, index: number) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
 // ── Helper: get authenticated Drive client ──
 
 async function getDrive() {
@@ -91,53 +109,49 @@ app.post("/scan", async (c) => {
     existingProblems.map((p) => [`${p.subjectId}:${p.levelId}:${p.code}`, p]),
   );
 
-  // 3. Process each file
-  const items: ScanItem[] = [];
-  const skipped: string[] = [];
-
-  for (const file of files) {
+  // 3. Filter parseable files and process in parallel
+  const parseable = files.flatMap((file) => {
     const parsed = parsePdfFilename(file.name);
-    if (!parsed) {
-      skipped.push(file.name);
-      continue;
-    }
+    return parsed ? [{ file, parsed }] : [];
+  });
+  const skipped = files
+    .filter((f) => !parsePdfFilename(f.name))
+    .map((f) => f.name);
 
-    // Download and classify pages
-    let pPages: number[] = [];
-    let totalPages = 0;
+  // Download + classify with concurrency limit (avoid Drive API rate limits)
+  const items: ScanItem[] = [];
+  await pMap(parseable, async ({ file, parsed }) => {
     try {
       const buf = await downloadDriveFile(drive, file.id);
       const types = await classifyPages(buf);
-      pPages = problemPageIndices(types);
-      totalPages = types.length;
+      const pPages = problemPageIndices(types);
+
+      const subjId = subjectNameToId.get(parsed.subjectName);
+      const lvlId = levelCodeToId.get(parsed.levelCode);
+      const existing =
+        subjId && lvlId
+          ? keyToProblem.get(`${subjId}:${lvlId}:${parsed.code}`)
+          : undefined;
+
+      items.push({
+        driveFileId: file.id,
+        fileName: file.name,
+        code: parsed.code,
+        subtopic: parsed.subtopic,
+        subjectName: parsed.subjectName,
+        levelCode: parsed.levelCode,
+        fileRole: parsed.fileRole,
+        problemPages: pPages,
+        totalPages: types.length,
+        action: existing ? "update" : "create",
+        existingProblemId: existing?.id,
+        existingName: existing?.name ?? undefined,
+      });
     } catch (err) {
       console.error(`[pdf-sync] Failed to process ${file.name}:`, err);
       skipped.push(file.name);
-      continue;
     }
-
-    const subjId = subjectNameToId.get(parsed.subjectName);
-    const lvlId = levelCodeToId.get(parsed.levelCode);
-    const existing =
-      subjId && lvlId
-        ? keyToProblem.get(`${subjId}:${lvlId}:${parsed.code}`)
-        : undefined;
-
-    items.push({
-      driveFileId: file.id,
-      fileName: file.name,
-      code: parsed.code,
-      subtopic: parsed.subtopic,
-      subjectName: parsed.subjectName,
-      levelCode: parsed.levelCode,
-      fileRole: parsed.fileRole,
-      problemPages: pPages,
-      totalPages,
-      action: existing ? "update" : "create",
-      existingProblemId: existing?.id,
-      existingName: existing?.name ?? undefined,
-    });
-  }
+  }, 5);
 
   return c.json({ data: { items, skipped } });
 });
@@ -270,38 +284,35 @@ app.post("/export", async (c) => {
   // Sort problems by code for consistent ordering
   problems.sort((a, b) => a.code.localeCompare(b.code));
 
-  const pdfParts: ArrayBuffer[] = [];
-
-  for (const p of problems) {
+  // Build work items (problem + file + label)
+  const work = problems.flatMap((p) => {
     const pf = files.find((f) => f.problemId === p.id);
-    if (!pf) continue;
-
+    if (!pf) return [];
     const subName = (p.subjectId && subjectMap.get(p.subjectId)) || "";
     const lvlName = (p.levelId && levelMap.get(p.levelId)) || "";
-    const label = `${subName}_${lvlName}_${p.code}`;
+    return [{ pf, label: `${subName}_${lvlName}_${p.code}`, pages: (pf.problemPages as number[]) ?? [] }];
+  });
 
-    const raw = await downloadDriveFile(drive, pf.gdriveFileId);
-    const buf = new Uint8Array(raw); // copy — classifyPages may detach
-    const pages = (pf.problemPages as number[]) ?? [];
-
-    if (pages.length === 0) {
+  // Download + extract with concurrency limit (avoid Drive API rate limits)
+  const parts = await pMap(work, async (w) => {
+    const raw = await downloadDriveFile(drive, w.pf.gdriveFileId);
+    const buf = new Uint8Array(raw);
+    if (w.pages.length === 0) {
       const types = await classifyPages(new Uint8Array(buf).buffer);
       const indices = problemPageIndices(types);
-      if (indices.length > 0) {
-        const extracted = await extractAndLabel(buf, indices, label);
-        pdfParts.push(extracted.buffer as ArrayBuffer);
-      }
-    } else {
-      const extracted = await extractAndLabel(buf, pages, label);
-      pdfParts.push(extracted.buffer as ArrayBuffer);
+      if (indices.length === 0) return null;
+      return extractAndLabel(buf, indices, w.label);
     }
-  }
+    return extractAndLabel(buf, w.pages, w.label);
+  }, 5);
+
+  const pdfParts = parts.filter(Boolean) as Uint8Array[];
 
   if (pdfParts.length === 0) {
     return c.json({ error: "No problem pages found" }, 404);
   }
 
-  const merged = await mergePdfs(pdfParts);
+  const merged = await mergePdfs(pdfParts.map((p) => p.buffer as ArrayBuffer));
   const today = new Date().toISOString().slice(0, 10);
 
   return new Response(Buffer.from(merged), {

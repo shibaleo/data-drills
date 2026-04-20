@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -412,7 +412,7 @@ const columns: ColumnDef<ScheduleRow>[] = [
 /* ── Page ── */
 
 export default function SchedulePage() {
-  usePageTitle("復習スケジュール");
+  usePageTitle("Schedule");
   const { currentProject, subjects, levels, statuses } = useProject();
 
   // Build status name → sortOrder map from DB statuses
@@ -682,8 +682,12 @@ export default function SchedulePage() {
                   onClick={handleExport}
                   disabled={exporting}
                 >
-                  <Download className="size-3 mr-1" />
-                  {exporting ? "..." : `PDF (${exportSelected.size})`}
+                  {exporting ? (
+                    <Loader2 className="size-3 mr-1 animate-spin" />
+                  ) : (
+                    <Download className="size-3 mr-1" />
+                  )}
+                  {exporting ? "エクスポート中..." : `PDF (${exportSelected.size})`}
                 </Button>
                 <button
                   type="button"
