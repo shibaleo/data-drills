@@ -21,6 +21,7 @@ import problemsList from "@/routes/problems-list";
 import answersList from "@/routes/answers-list";
 import schedule from "@/routes/schedule";
 import notes from "@/routes/notes";
+import pdfSync from "@/routes/pdf-sync";
 
 const app = new Hono<Env>().basePath("/api/v1");
 
@@ -65,6 +66,7 @@ app.route("/problems-list", problemsList);
 app.route("/answers-list", answersList);
 app.route("/schedule", schedule);
 app.route("/notes", notes);
+app.route("/pdf-sync", pdfSync);
 
 // /me endpoint — return authenticated user info
 app.get("/me", (c) => {

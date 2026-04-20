@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
+import { Download } from "lucide-react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -18,6 +19,7 @@ import { useProblemDialogs } from "@/hooks/use-problem-dialogs";
 import { SortHeader } from "@/app/(pages)/problems/columns";
 import { toJSTDateString } from "@/lib/date-utils";
 import { StatusTag } from "@/components/color-tags";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -434,6 +436,8 @@ export default function SchedulePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [chartColorMode, setChartColorMode] = useState<ChartColorMode>("status");
   const tableRef = useRef<HTMLDivElement>(null);
+  const [exportSelected, setExportSelected] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
 
   // Filter state
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter | null>(null);
@@ -541,6 +545,44 @@ export default function SchedulePage() {
     [baseFilteredRows],
   );
 
+  const toggleExportSelect = useCallback((problemId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExportSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(problemId)) next.delete(problemId);
+      else next.add(problemId);
+      return next;
+    });
+  }, []);
+
+  const handleExport = useCallback(async () => {
+    if (exportSelected.size === 0) return;
+    setExporting(true);
+    try {
+      const res = await fetch("/api/v1/pdf-sync/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ problem_ids: Array.from(exportSelected) }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(body.error || "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `exported-${todayStr}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("PDFエクスポート完了");
+    } catch (err) {
+      toast.error(`エクスポート失敗: ${err instanceof Error ? err.message : err}`);
+    } finally {
+      setExporting(false);
+    }
+  }, [exportSelected, todayStr]);
+
   const handleSelect = useCallback((problemId: string) => {
     setSelectedId((prev) => (prev === problemId ? null : problemId));
     requestAnimationFrame(() => {
@@ -629,6 +671,29 @@ export default function SchedulePage() {
                 allLabel="All Statuses"
               />
             )}
+
+            {exportSelected.size > 0 && (
+              <>
+                <div className="h-4 w-px bg-border mx-1" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={handleExport}
+                  disabled={exporting}
+                >
+                  <Download className="size-3 mr-1" />
+                  {exporting ? "..." : `PDF (${exportSelected.size})`}
+                </Button>
+                <button
+                  type="button"
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                  onClick={() => setExportSelected(new Set())}
+                >
+                  解除
+                </button>
+              </>
+            )}
           </div>
 
           {/* Schedule chart */}
@@ -664,7 +729,7 @@ export default function SchedulePage() {
               <TableHeader>
                 {table.getHeaderGroups().map((hg) => (
                   <TableRow key={hg.id}>
-                    <TableHead className="sticky top-0 z-10 bg-background w-4 px-2" />
+                    <TableHead className="sticky top-0 z-10 bg-background w-10 px-3" />
                     {hg.headers.map((header) => (
                       <TableHead
                         key={header.id}
@@ -690,11 +755,16 @@ export default function SchedulePage() {
                     onClick={() => pid === selectedId ? openDetail(pid) : handleSelect(pid)}
                     onDoubleClick={() => openDetail(pid)}
                   >
-                    <TableCell className="w-4 px-2">
-                      <div
-                        className="size-2.5 rounded-full"
-                        style={{ backgroundColor: row.original.color }}
-                      />
+                    <TableCell className="w-10 px-3 align-middle">
+                      <div className="flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          className="size-3.5 accent-primary cursor-pointer"
+                          checked={exportSelected.has(pid)}
+                          onClick={(e) => toggleExportSelect(pid, e)}
+                          onChange={() => {}}
+                        />
+                      </div>
                     </TableCell>
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id} style={{ width: cell.column.getSize() !== 150 ? cell.column.getSize() : undefined }}>

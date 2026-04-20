@@ -1,0 +1,1 @@
+ALTER TABLE "project" ADD COLUMN "gdrive_folder_id" text;

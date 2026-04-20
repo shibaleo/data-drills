@@ -80,6 +80,7 @@ const navItems: NavItem[] = [
   { href: "/topics", label: "Topics", icon: List },
   { href: "/tags", label: "Tags", icon: Tag, dividerAfter: true },
   { href: "/masters", label: "Masters", icon: LayoutGrid },
+  { href: "/pdf-sync", label: "PDF Sync", icon: FileText },
   { href: "/about", label: "About", icon: Info },
 ];
 

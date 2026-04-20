@@ -25,6 +25,7 @@ export interface ProblemFile {
   problem_id: string
   gdrive_file_id: string
   file_name: string
+  problem_pages: number[] | null
   created_at: string
 }
 

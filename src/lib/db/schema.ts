@@ -32,6 +32,7 @@ export const project = pgTable("project", {
   code: code(),
   name: name(),
   color: text("color"),
+  gdriveFolderId: text("gdrive_folder_id"),
   sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps(),
 }, (t) => [
@@ -158,6 +159,7 @@ export const problemFile = pgTable("problem_file", {
   problemId: uuid("problem_id").notNull().references(() => problem.id, { onDelete: "cascade" }),
   gdriveFileId: text("gdrive_file_id").notNull(),
   fileName: text("file_name"),
+  problemPages: jsonb("problem_pages").$type<number[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
