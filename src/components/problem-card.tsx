@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, type RefObject } from 'react'
+import { useState, useRef, type RefObject } from 'react'
 import { ArrowUp, ArrowDown, Plus, Pencil, Trash2 } from 'lucide-react'
 import type { Problem, Answer, Review } from '@/lib/types'
 import { parseDuration, fmtDiff, secondsToHms } from '@/lib/duration'
@@ -126,7 +126,6 @@ export function ProblemCard({
   )
   const info = computeForgettingInfo(p.answers, now)
   const [highlightDate, setHighlightDate] = useState<string | null>(null)
-  const stripRef = useRef<HTMLDivElement>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
 
   const toggleHighlight = (date: string | null) => {
@@ -198,17 +197,22 @@ export function ProblemCard({
                   </span>
                 </span>
               )}
-              <div className="opacity-60 leading-[0]">
-                <DurationSparkline durations={answers.slice().reverse().map((a) => a.duration)} />
+              <div className="leading-[0]">
+                <DurationSparkline
+                  entries={answers.slice().reverse().map((a) => ({
+                    date: a.date ?? '',
+                    duration: a.duration,
+                    color: a.status ? lookup.statusColor(a.status) : null,
+                  }))}
+                  highlightDate={highlightDate}
+                  onClickDot={(date) => toggleHighlight(date)}
+                />
               </div>
             </div>
           </div>
         ) : (
           <div className="flex items-center overflow-visible">
             <span className="text-[10px] text-muted-foreground">未回答</span>
-            <div className="ml-auto opacity-60 leading-[0]">
-              <DurationSparkline durations={answers.slice().reverse().map((a) => a.duration)} />
-            </div>
           </div>
         )}
 
@@ -218,86 +222,6 @@ export function ProblemCard({
             <Markdown>{p.checkpoint}</Markdown>
           </div>
         )}
-
-        {/* Answer history strip — block chart style */}
-        {answers.length >= 2 && (() => {
-          const sorted = [...answers].reverse() // chronological (oldest first)
-          const todayStr = todayJST()
-          const firstDate = new Date(sorted[0].date + 'T00:00:00')
-          const todayDate = new Date(todayStr + 'T00:00:00')
-          const totalDays = Math.max(1, Math.round((todayDate.getTime() - firstDate.getTime()) / 86_400_000)) + 1
-          // Build answer lookup: date → color
-          const dateColorMap = new Map<string, string>()
-          for (const a of sorted) {
-            if (a.date) dateColorMap.set(a.date, (a.status ? lookup.statusColor(a.status) : null) ?? '#888')
-          }
-          const SZ = 8
-          const G = 2
-          const STEP_H = SZ + G
-          const svgW = totalDays * STEP_H
-          const GLOW_PAD = 3
-          const svgH = SZ + GLOW_PAD * 2
-          return (
-            <div ref={stripRef} className="overflow-x-auto w-0 min-w-full">
-              <svg width={svgW} height={svgH} className="block">
-                <defs>
-                  <filter id="glow">
-                    <feGaussianBlur stdDeviation="2" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-                {Array.from({ length: totalDays }, (_, i) => {
-                  const d = new Date(firstDate.getTime() + i * 86_400_000)
-                  const ds = d.toISOString().slice(0, 10)
-                  const color = dateColorMap.get(ds)
-                  const isHighlight = ds === highlightDate
-                  return (
-                    <g
-                      key={i}
-                      className={color ? 'cursor-pointer' : undefined}
-                      onClick={color ? () => {
-                        toggleHighlight(ds)
-                        // Scroll to the corresponding answer entry in the timeline
-                        if (ds !== highlightDate && timelineRef.current) {
-                          const el = timelineRef.current.querySelector(`[data-answer-date="${ds}"]`)
-                          el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                        }
-                      } : undefined}
-                    >
-                      <rect
-                        x={i * STEP_H}
-                        y={GLOW_PAD}
-                        width={SZ}
-                        height={SZ}
-                        rx={1}
-                        fill={color ?? 'none'}
-                        stroke={color ? color : 'hsl(var(--border))'}
-                        strokeWidth={color ? 0 : 0.5}
-                        opacity={color ? 0.85 : 1}
-                      />
-                      {isHighlight && color && (
-                        <rect
-                          x={i * STEP_H - GLOW_PAD}
-                          y={0}
-                          width={SZ + GLOW_PAD * 2}
-                          height={svgH}
-                          rx={3}
-                          fill="none"
-                          stroke={color}
-                          strokeWidth={1.5}
-                          filter="url(#glow)"
-                        />
-                      )}
-                    </g>
-                  )
-                })}
-              </svg>
-            </div>
-          )
-        })()}
 
         {/* Answers — timeline style */}
         {answers.length > 0 && (
@@ -330,16 +254,6 @@ export function ProblemCard({
                       onClick={() => {
                         if (!a.date) return
                         toggleHighlight(a.date)
-                        // Scroll the strip to show the highlighted block
-                        if (a.date !== highlightDate && stripRef.current && answers.length >= 2) {
-                          const sorted = [...answers].reverse()
-                          const fd = new Date(sorted[0].date + 'T00:00:00')
-                          const ad = new Date(a.date + 'T00:00:00')
-                          const dayOff = Math.round((ad.getTime() - fd.getTime()) / 86_400_000)
-                          const px = dayOff * (8 + 2) // SZ + G
-                          const cw = stripRef.current.clientWidth
-                          stripRef.current.scrollTo({ left: px - cw / 2, behavior: 'smooth' })
-                        }
                       }}
                     >
                       {a.status ? <StatusTag status={a.status} color={lookup.statusColor(a.status)} opaque /> : <span className="inline-block size-2 rounded-full bg-foreground/40" />}
