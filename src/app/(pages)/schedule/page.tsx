@@ -405,7 +405,67 @@ const columns: ColumnDef<ScheduleRow>[] = [
     ),
     size: 64,
   },
+  {
+    id: "history",
+    header: () => <span className="text-xs text-muted-foreground">History</span>,
+    cell: ({ row }) => <HistoryTimeline entries={row.original.answerHistory} />,
+    size: 200,
+  },
 ];
+
+/* ── History timeline ── */
+
+const TIMELINE_W = 180;
+const TIMELINE_H = 16;
+const TIMELINE_DAYS = 90;
+
+function HistoryTimeline({ entries }: { entries: { date: string; color: string; status: string }[] }) {
+  const today = useMemo(() => toJSTDateString(new Date()), []);
+
+  // Filter to last N days and compute positions
+  const bars = useMemo(() => {
+    const startDate = addDays(today, -TIMELINE_DAYS + 1);
+    return entries
+      .filter((e) => e.date >= startDate && e.date <= today)
+      .map((e) => {
+        const daysAgo = Math.round(
+          (new Date(today + "T12:00:00").getTime() - new Date(e.date + "T12:00:00").getTime()) / 86_400_000,
+        );
+        const x = ((TIMELINE_DAYS - 1 - daysAgo) / (TIMELINE_DAYS - 1)) * (TIMELINE_W - 2);
+        return { ...e, x };
+      });
+  }, [entries, today]);
+
+  if (bars.length === 0) return null;
+
+  return (
+    <svg width={TIMELINE_W} height={TIMELINE_H} className="block">
+      {/* Background track */}
+      <line
+        x1={0} y1={TIMELINE_H / 2}
+        x2={TIMELINE_W} y2={TIMELINE_H / 2}
+        stroke="currentColor" strokeWidth={0.5} opacity={0.1}
+      />
+      {/* Answer bars */}
+      {bars.map((b, i) => (
+        <rect
+          key={`${b.date}-${i}`}
+          x={b.x}
+          y={2}
+          width={2}
+          height={TIMELINE_H - 4}
+          rx={0.5}
+          fill={b.color}
+          opacity={0.9}
+        >
+          <title>{b.date} — {b.status}</title>
+        </rect>
+      ))}
+      {/* Today marker */}
+      <circle cx={TIMELINE_W - 1} cy={TIMELINE_H / 2} r={1.5} fill="currentColor" opacity={0.3} />
+    </svg>
+  );
+}
 
 /* ── Page ── */
 
@@ -469,6 +529,7 @@ export default function SchedulePage() {
         daysUntil: r.daysUntil,
         reviewCount: r.answerCount,
         standardTime: r.standardTime,
+        answerHistory: r.answerHistory,
       }));
       setRows(built);
     } catch {

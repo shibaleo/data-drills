@@ -42,11 +42,20 @@ app.get("/", async (c) => {
   const subjectMap = new Map(subjects.map((s) => [s.id, s]));
   const levelMap = new Map(levels.map((l) => [l.id, l]));
 
-  // Find latest answer per problem + count
+  // Find latest answer per problem + count + history
   const latestAnswer = new Map<string, { date: string; duration: number | null; answerStatusId: string | null }>();
   const answerCounts = new Map<string, number>();
+  const answerHistoryMap = new Map<string, { date: string; color: string; status: string }[]>();
   for (const a of answers) {
     answerCounts.set(a.problemId, (answerCounts.get(a.problemId) ?? 0) + 1);
+    const entries = answerHistoryMap.get(a.problemId) ?? [];
+    const st = a.answerStatusId ? statusMap.get(a.answerStatusId) : null;
+    entries.push({
+      date: a.date,
+      color: st?.color ?? defaultStatus.color ?? "#888",
+      status: st?.name ?? defaultStatus.name,
+    });
+    answerHistoryMap.set(a.problemId, entries);
     const cur = latestAnswer.get(a.problemId);
     if (!cur || a.date >= cur.date) {
       latestAnswer.set(a.problemId, {
@@ -97,6 +106,7 @@ app.get("/", async (c) => {
       daysUntil,
       answerCount: answerCounts.get(p.id) ?? 0,
       standardTime: p.standardTime,
+      answerHistory: answerHistoryMap.get(p.id) ?? [],
       color: problemColor(p.code, p.name ?? "", subj?.color ?? null),
     };
   });

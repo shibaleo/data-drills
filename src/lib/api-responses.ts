@@ -41,5 +41,6 @@ export interface ScheduleRow {
   daysUntil: number
   answerCount: number
   standardTime: number | null
+  answerHistory: { date: string; color: string; status: string }[]
   color: string
 }
