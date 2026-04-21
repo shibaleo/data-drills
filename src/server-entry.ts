@@ -1,4 +1,6 @@
 import { handle } from "hono/vercel";
 import app from "@/lib/hono-app";
 
-export default handle(app);
+// Vercel Node.js runtime handler
+const handler = handle(app);
+export default handler;

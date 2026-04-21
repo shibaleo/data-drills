@@ -1,5 +1,3 @@
-export default function handler() {
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { "content-type": "application/json" },
-  });
+export default function handler(req: any, res: any) {
+  res.status(200).json({ ok: true });
 }
