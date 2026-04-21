@@ -4,7 +4,6 @@ import {
   text,
   integer,
   boolean,
-  date,
   timestamp,
   jsonb,
   primaryKey,
@@ -170,7 +169,7 @@ export const problemFile = pgTable("problem_file", {
 export const answer = pgTable("answer", {
   id: id(),
   problemId: uuid("problem_id").notNull().references(() => problem.id, { onDelete: "cascade" }),
-  date: date("date").notNull(),
+  date: timestamp("date", { withTimezone: true }).notNull(),
   duration: integer("duration"),
   answerStatusId: uuid("answer_status_id").references(() => answerStatus.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

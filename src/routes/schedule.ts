@@ -47,19 +47,20 @@ app.get("/", async (c) => {
   const answerCounts = new Map<string, number>();
   const answerHistoryMap = new Map<string, { date: string; color: string; status: string }[]>();
   for (const a of answers) {
+    const dateStr = toJSTDateString(a.date);
     answerCounts.set(a.problemId, (answerCounts.get(a.problemId) ?? 0) + 1);
     const entries = answerHistoryMap.get(a.problemId) ?? [];
     const st = a.answerStatusId ? statusMap.get(a.answerStatusId) : null;
     entries.push({
-      date: a.date,
+      date: dateStr,
       color: st?.color ?? defaultStatus.color ?? "#888",
       status: st?.name ?? defaultStatus.name,
     });
     answerHistoryMap.set(a.problemId, entries);
     const cur = latestAnswer.get(a.problemId);
-    if (!cur || a.date >= cur.date) {
+    if (!cur || dateStr >= cur.date) {
       latestAnswer.set(a.problemId, {
-        date: a.date,
+        date: dateStr,
         duration: a.duration,
         answerStatusId: a.answerStatusId,
       });

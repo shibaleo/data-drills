@@ -42,8 +42,8 @@ export function jstDayDiff(a: string, b: string): number {
   )
 }
 
-/** Format a date string as "M/D" (local time) for chart axes. */
+/** Format a date string as "M/D" in JST for chart axes. */
 export function formatMonthDay(dateStr: string): string {
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}`
+  const d = new Date(new Date(dateStr).getTime() + JST_OFFSET_MS)
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`
 }

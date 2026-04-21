@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { problem, answer, answerStatus, subject, level } from "@/lib/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { secondsToHmsNullable } from "@/lib/duration";
+import { toJSTDateString } from "@/lib/date-utils";
 const app = new Hono();
 
 /**
@@ -43,7 +44,7 @@ app.get("/", async (c) => {
     return {
       id: a.id,
       problemId: a.problemId,
-      date: a.date,
+      date: toJSTDateString(a.date),
       duration: secondsToHmsNullable(a.duration),
       status: st?.name ?? null,
       statusColor: st?.color ?? null,

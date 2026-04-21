@@ -14,6 +14,7 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { problemColor } from "@/lib/problem-color";
 import { secondsToHmsNullable } from "@/lib/duration";
+import { toJSTDateString } from "@/lib/date-utils";
 import type { ReviewType } from "@/lib/types";
 
 const app = new Hono();
@@ -122,7 +123,7 @@ app.get("/", async (c) => {
     const ts = a.createdAt.toISOString();
     list.push({
       id: a.id,
-      date: a.date,
+      date: toJSTDateString(a.date),
       duration: secondsToHmsNullable(a.duration),
       duration_sec: a.duration,
       status: a.answerStatusId ? statusNameMap.get(a.answerStatusId) ?? null : null,

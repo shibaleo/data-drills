@@ -95,6 +95,7 @@ function useCodeSuggestions(projectId: string | undefined, subject: string, leve
 export function useAnswerForm(onSaved: (problemId: string) => void) {
   const { currentProject, subjects, levels, statuses } = useProject()
   const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [problemId, setProblemId] = useState<string | null>(null)
   const [problem, setProblem] = useState<Problem | null>(null)
   const [subject, setSubject] = useState('')
@@ -163,8 +164,10 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
   }
 
   async function save(overrides?: { date?: string }) {
+    if (saving) return
     if (!code.trim()) { toast.error('コードを入力してください'); return }
     if (!currentProject) return
+    setSaving(true)
 
     const unchanged = problemId && subject === origSubject && level === origLevel && code.trim() === origCode.trim()
     const pid = unchanged
@@ -203,6 +206,8 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
       onSaved(pid)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '登録に失敗')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -217,6 +222,7 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
     status, setStatus,
     reviews,
     codeSuggestions, checkpointMap, nameMap,
+    saving,
     openForProblem, openBlank,
     addReview, updateReview, removeReview,
     save,
@@ -228,6 +234,7 @@ export function useAnswerForm(onSaved: (problemId: string) => void) {
 export function useEditAnswerForm(onSaved: (problemId: string) => void) {
   const { currentProject, statuses } = useProject()
   const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [answerId, setAnswerId] = useState('')
   const [problemId, setProblemId] = useState('')
   const [subject, setSubject] = useState('')
@@ -283,7 +290,9 @@ export function useEditAnswerForm(onSaved: (problemId: string) => void) {
   }
 
   async function save() {
+    if (saving) return
     if (!currentProject) return
+    setSaving(true)
 
     const unchanged = subject === origSubject && level === origLevel && code.trim() === origCode.trim()
     const pid = unchanged
@@ -351,6 +360,8 @@ export function useEditAnswerForm(onSaved: (problemId: string) => void) {
       onSaved(pid)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '更新に失敗')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -362,6 +373,7 @@ export function useEditAnswerForm(onSaved: (problemId: string) => void) {
     status, setStatus,
     duration, setDuration,
     reviews,
+    saving,
     codeSuggestions, checkpointMap, nameMap,
     openFor,
     addReview, updateReview, removeReview,
