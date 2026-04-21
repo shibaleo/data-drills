@@ -1,22 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import dynamic from 'next/dynamic'
+import { lazy, Suspense, useState } from 'react'
 import { Eye, EyeOff, FileText, Link, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ProblemFile } from '@/lib/types'
 import { useDrivePicker } from '@/lib/use-drive-picker'
 
-const PdfViewer = dynamic(
-  () => import('@/components/pdf-viewer').then((m) => ({ default: m.PdfViewer })),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    ),
-  },
+const PdfViewer = lazy(() =>
+  import('@/components/pdf-viewer').then((m) => ({ default: m.PdfViewer })),
 )
 
 /**
@@ -127,10 +118,12 @@ export function ProblemPdfLink({ problemFiles, problemId, onLinked, startActions
         </div>
         {open && (
           <div className="mt-2 -mb-6 -mx-6 w-[calc(100%+3rem)] rounded-t-md rounded-b-lg border-t border-x border-border overflow-hidden">
-            <PdfViewer
-              url={`/api/drive/file?id=${file.gdrive_file_id}`}
-              title={file.file_name}
-            />
+            <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>}>
+              <PdfViewer
+                url={`/api/drive/file?id=${file.gdrive_file_id}`}
+                title={file.file_name}
+              />
+            </Suspense>
           </div>
         )}
       </div>
