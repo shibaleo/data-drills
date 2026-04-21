@@ -5,7 +5,7 @@ node_modules/
 dist/
 .next/
 out/
-api/*.mjs
+api/_bundle.mjs
 
 # env
 .env
