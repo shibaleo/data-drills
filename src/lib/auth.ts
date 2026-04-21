@@ -235,6 +235,8 @@ export async function authenticate(req: Request): Promise<AuthResult | null> {
   const bearerToken = extractBearerToken(req);
   const cookieToken = extractSessionCookie(req);
 
+  console.log("[auth] bearer:", !!bearerToken, "cookie:", !!cookieToken);
+
   for (const token of [bearerToken, cookieToken]) {
     if (!token) continue;
 
@@ -243,18 +245,23 @@ export async function authenticate(req: Request): Promise<AuthResult | null> {
     }
 
     // Try Clerk JWKS → verify user exists in DB by email
+    const clerkDomain = getClerkDomain();
+    console.log("[auth] clerkDomain:", clerkDomain, "pkEnv:", !!process.env.VITE_CLERK_PUBLISHABLE_KEY);
     const clerkIdentity = await verifyClerkToken(token);
+    console.log("[auth] clerkIdentity:", clerkIdentity);
     if (clerkIdentity) {
       if (clerkIdentity.email) {
         const cached = getCachedAuth(clerkIdentity.email);
         if (cached) return cached;
         const result = await findUser(clerkIdentity.email);
+        console.log("[auth] findUser result:", !!result);
         if (result) {
           setCachedAuth(clerkIdentity.email, result);
           return result;
         }
       }
-      return null; // Valid Clerk token but user not in DB
+      console.log("[auth] Clerk token valid but no email or user not in DB");
+      return null;
     }
 
     // Fallback: dev HS256 token (local password session)
@@ -262,5 +269,6 @@ export async function authenticate(req: Request): Promise<AuthResult | null> {
     if (devResult) return devResult;
   }
 
+  console.log("[auth] no valid token found");
   return null;
 }
