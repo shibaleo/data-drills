@@ -20,14 +20,21 @@ export function LoginPage({ onPasswordLogin, error: externalError }: LoginPagePr
   const [loading, setLoading] = useState(false);
 
   async function handleGoogleLogin() {
-    if (!signIn) return;
+    console.log("[SSO] signIn object:", signIn);
+    if (!signIn) {
+      console.error("[SSO] signIn is undefined — Clerk not loaded?");
+      setError("Clerk not ready. Please refresh and try again.");
+      return;
+    }
     try {
+      console.log("[SSO] calling authenticateWithRedirect...");
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl: "/sso-callback",
         redirectUrlComplete: "/",
       });
-    } catch {
+    } catch (err) {
+      console.error("[SSO] authenticateWithRedirect failed:", err);
       setError("Google login failed");
     }
   }
