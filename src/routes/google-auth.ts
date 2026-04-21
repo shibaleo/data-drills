@@ -25,7 +25,7 @@ app.get("/callback", async (c) => {
   const code = c.req.query("code");
   if (!code) return c.json({ error: "Missing code" }, 400);
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  const baseUrl = process.env.VITE_BASE_URL ?? "http://localhost:3000";
 
   try {
     const tokens = await exchangeCode(code);

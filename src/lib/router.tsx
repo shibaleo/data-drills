@@ -1,8 +1,23 @@
 /**
- * Thin wrapper around Next.js routing primitives.
- * When migrating to TanStack Router, only this file needs to change.
+ * Routing primitives — thin wrappers around TanStack Router.
  */
 
-// Re-export from Next.js for now
-export { default as Link } from "next/link";
-export { usePathname, useRouter, redirect } from "next/navigation";
+export { Link, redirect } from "@tanstack/react-router";
+import {
+  useRouter as useTanStackRouter,
+  useLocation as useTanStackLocation,
+} from "@tanstack/react-router";
+
+/** Returns the current pathname string (compat with Next.js usePathname) */
+export function usePathname(): string {
+  return useTanStackLocation().pathname;
+}
+
+/** useRouter with push() compat for Next.js-style navigation */
+export function useRouter() {
+  const router = useTanStackRouter();
+  return {
+    ...router,
+    push: (to: string) => router.navigate({ to }),
+  };
+}

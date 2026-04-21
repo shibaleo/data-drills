@@ -46,7 +46,7 @@ async function verifyApiKeyToken(token: string): Promise<AuthResult | null> {
 // ── Clerk JWKS ──
 
 function getClerkDomain(): string | null {
-  const pk = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const pk = process.env.VITE_CLERK_PUBLISHABLE_KEY;
   if (!pk) return null;
   const encoded = pk.replace(/^pk_(test|live)_/, "");
   try {

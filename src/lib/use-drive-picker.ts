@@ -69,8 +69,8 @@ export function useDrivePicker() {
     if (!res.ok) throw new Error('Failed to get access token')
     const { accessToken } = await res.json()
 
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
-    if (!apiKey) throw new Error('Missing NEXT_PUBLIC_GOOGLE_API_KEY')
+    const apiKey = import.meta.env.VITE_GOOGLE_API_KEY
+    if (!apiKey) throw new Error('Missing VITE_GOOGLE_API_KEY')
 
     return new Promise((resolve) => {
       const { picker } = window.google

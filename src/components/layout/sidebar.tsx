@@ -109,7 +109,7 @@ export function SidebarNav({
             return (
               <div key={item.href}>
                 <Link
-                  href={item.href}
+                  to={item.href}
                   title={item.label}
                   onClick={onNavigate}
                   className={cn(

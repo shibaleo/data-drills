@@ -1,7 +1,4 @@
-"use client";
-
-import dynamic from "next/dynamic";
-import { useRef, useCallback } from "react";
+import { lazy, Suspense, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 interface MarkdownEditorProps {
@@ -12,10 +9,7 @@ interface MarkdownEditorProps {
   className?: string;
 }
 
-const CodeMirrorEditor = dynamic(
-  () => import("./codemirror-editor"),
-  { ssr: false, loading: () => <div className="min-h-[120px]" /> },
-);
+const CodeMirrorEditor = lazy(() => import("./codemirror-editor"));
 
 export function MarkdownEditor({ defaultValue, onChange, placeholder, compact, className }: MarkdownEditorProps) {
   const onChangeRef = useRef(onChange);
@@ -31,12 +25,14 @@ export function MarkdownEditor({ defaultValue, onChange, placeholder, compact, c
       compact ? "min-h-0" : "min-h-[300px]",
       className,
     )}>
-      <CodeMirrorEditor
-        defaultValue={defaultValue}
-        onChange={stableOnChange}
-        placeholder={placeholder}
-        compact={compact}
-      />
+      <Suspense fallback={<div className="min-h-[120px]" />}>
+        <CodeMirrorEditor
+          defaultValue={defaultValue}
+          onChange={stableOnChange}
+          placeholder={placeholder}
+          compact={compact}
+        />
+      </Suspense>
     </div>
   );
 }
