@@ -22,13 +22,17 @@ import answersList from "@/routes/answers-list";
 import schedule from "@/routes/schedule";
 import notes from "@/routes/notes";
 import pdfSync from "@/routes/pdf-sync";
+import googleAuth from "@/routes/google-auth";
+import drive from "@/routes/drive";
 
-const app = new Hono<Env>().basePath("/api/v1");
+/* ── V1 API sub-app ── */
 
-app.use("*", logger());
+const v1 = new Hono<Env>();
+
+v1.use("*", logger());
 
 // Error handler — include cause message for DB constraint errors
-app.onError((err, c) => {
+v1.onError((err, c) => {
   console.error(err);
   const causeMsg = err.cause instanceof Error ? err.cause.message : "";
   const msg = causeMsg ? `${err.message} - ${causeMsg}` : (err.message || "Internal Server Error");
@@ -36,11 +40,11 @@ app.onError((err, c) => {
 });
 
 // Public routes
-app.route("/health", health);
-app.route("/auth", authRoutes);
+v1.route("/health", health);
+v1.route("/auth", authRoutes);
 
 // Auth middleware for all subsequent routes
-app.use("*", async (c, next) => {
+v1.use("*", async (c, next) => {
   const result = await authenticate(c.req.raw);
   if (!result) {
     return c.json({ error: "Unauthorized" }, 401);
@@ -50,26 +54,26 @@ app.use("*", async (c, next) => {
 });
 
 // Routes
-app.route("/projects", projects);
-app.route("/problems", problems);
-app.route("/answers", answers);
-app.route("/flashcards", flashcards);
-app.route("/flashcard-reviews", flashcardReviews);
-app.route("/reviews", reviews);
-app.route("/api-keys", apiKeys);
-app.route("/users", users);
-app.route("/statuses", statuses);
-app.route("/tags", tags);
-app.route("/review-tags", reviewTags);
-app.route("/problem-files", problemFiles);
-app.route("/problems-list", problemsList);
-app.route("/answers-list", answersList);
-app.route("/schedule", schedule);
-app.route("/notes", notes);
-app.route("/pdf-sync", pdfSync);
+v1.route("/projects", projects);
+v1.route("/problems", problems);
+v1.route("/answers", answers);
+v1.route("/flashcards", flashcards);
+v1.route("/flashcard-reviews", flashcardReviews);
+v1.route("/reviews", reviews);
+v1.route("/api-keys", apiKeys);
+v1.route("/users", users);
+v1.route("/statuses", statuses);
+v1.route("/tags", tags);
+v1.route("/review-tags", reviewTags);
+v1.route("/problem-files", problemFiles);
+v1.route("/problems-list", problemsList);
+v1.route("/answers-list", answersList);
+v1.route("/schedule", schedule);
+v1.route("/notes", notes);
+v1.route("/pdf-sync", pdfSync);
 
 // /me endpoint — return authenticated user info
-app.get("/me", (c) => {
+v1.get("/me", (c) => {
   const authResult = c.get("authResult");
   return c.json({
     data: {
@@ -79,5 +83,13 @@ app.get("/me", (c) => {
     },
   });
 });
+
+/* ── Root app — mounts V1 + Google/Drive routes ── */
+
+const app = new Hono().basePath("/api");
+
+app.route("/v1", v1);
+app.route("/auth/google", googleAuth);
+app.route("/drive", drive);
 
 export default app;
