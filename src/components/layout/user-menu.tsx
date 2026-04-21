@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@clerk/react";
 import { Settings, LogOut } from "lucide-react";
 import { useMe } from "@/components/auth/auth-gate";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";

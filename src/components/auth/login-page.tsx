@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSignIn } from "@clerk/nextjs";
+import { useSignIn } from "@clerk/react";
 import { SITE_NAME } from "@/lib/site";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,10 +22,10 @@ export function LoginPage({ onPasswordLogin, error: externalError }: LoginPagePr
   async function handleGoogleLogin() {
     if (!signIn) return;
     try {
-      await signIn.authenticateWithRedirect({
+      await signIn.sso({
         strategy: "oauth_google",
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/",
+        redirectCallbackUrl: "/sso-callback",
+        redirectUrl: "/",
       });
     } catch {
       setError("Google login failed");
